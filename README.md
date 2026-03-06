@@ -14,15 +14,12 @@
 
 ---
 
-## Sources des datasets par critère
+## Prérequis
 
-### 2022
-
-Niveaux d'études => https://www.data.gouv.fr/datasets/diplomes-et-formation 
-
-### 2017
-
-### 2017 et 2022
+* Dépendances Python → fichier `requirements.txt` à lancer avec xx.sh
+* Script de déploiment automatisé des scripts de nettoyage Python
+  * Donner les autorisations d'exécution au fichier xx.sh : `chmod +x xx.sh`
+  * Executer le script `./xx.sh`
 
 ---
 
@@ -39,3 +36,17 @@ Niveaux d'études => https://www.data.gouv.fr/datasets/diplomes-et-formation
 - Visualisation des résultats
 - Rédaction des livrables
 - Soutenance
+
+---
+
+## Sources des datasets par critère
+
+### 2022
+
+Niveaux d'études => https://www.data.gouv.fr/datasets/diplomes-et-formation 
+
+### 2017
+
+### 2017 et 2022
+
+---
