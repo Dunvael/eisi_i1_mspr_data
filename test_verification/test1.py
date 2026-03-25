@@ -44,11 +44,11 @@ if df_2022 is None or df_historique is None:
 # ==========================================
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3135/3135810.png", width=80)
-    st.header("🎛️ Filtres")
+    st.header("Filtres")
     
     # On liste toutes les villes proprement
     toutes_villes = sorted(set(df_2022['localisation']).union(set(df_historique['localisation'])))
-    ville_choisie = st.selectbox("📍 Sélectionner une commune :", ["Toute la région"] + list(toutes_villes))
+    ville_choisie = st.selectbox("Sélectionner une commune :", ["Toute la région"] + list(toutes_villes))
     
     st.divider()
     st.caption("Projet MSPR - Dossier 1")
@@ -56,11 +56,11 @@ with st.sidebar:
 # ==========================================
 # 4. SÉLECTEUR D'ANNÉE (BOUTONS)
 # ==========================================
-st.title("🎓 Analyse des Niveaux d'Études")
+st.title("Analyse des Niveaux d'Études")
 
 choix_annee = st.radio(
-    "👉 **Choisissez l'année à analyser :**",
-    ["📜 Voir l'Historique (2017 / 2016)", "🚀 Ouvrir l'Année Cible (2022)"],
+    " **Choisissez l'année à analyser :**",
+    ["Voir l'Historique (2017 / 2016)", "Ouvrir l'Année Cible (2022)"],
     horizontal=True
 )
 
@@ -84,7 +84,7 @@ if ville_choisie != "Toute la région":
 # ==========================================
 # 6. AFFICHAGE DES RÉSULTATS
 # ==========================================
-st.markdown(f"### 📊 Données affichées : {ville_choisie} | Année : {annee_titre}")
+st.markdown(f"### Données affichées : {ville_choisie} | Année : {annee_titre}")
 
 if df_actif.empty:
     st.warning("⚠️ Aucune donnée ne correspond à tes filtres.")
@@ -99,14 +99,14 @@ else:
         
     diplome_top = df_actif.groupby('diplome')['nb_pers'].sum().idxmax()
     
-    col1.metric("👥 Personnes Recensées", f"{total_recense:,}".replace(",", " "))
-    col2.metric("🏆 Diplôme Majoritaire", diplome_top)
-    col3.metric("📊 Lignes de données", f"{len(df_actif):,}".replace(",", " "))
+    col1.metric("Personnes Recensées", f"{total_recense:,}".replace(",", " "))
+    col2.metric("Diplôme Majoritaire", diplome_top)
+    col3.metric("Lignes de données", f"{len(df_actif):,}".replace(",", " "))
 
     st.write("")
 
     # --- CRÉATION DES ONGLETS ---
-    tab1, tab2, tab3 = st.tabs(["📊 Vue Globale", "⚖️ Analyse Hommes / Femmes", "🗄️ Données Brutes"])
+    tab1, tab2, tab3 = st.tabs(["Vue Globale", "Analyse Hommes / Femmes", "Données Brutes"])
 
     # ---------------------------------------------------------
     # ONGLET 1 : VUE GLOBALE
@@ -139,7 +139,7 @@ else:
             
             # --- TABLEAU 1 : TOTAL GLOBAL ---
             with col_tab1:
-                st.markdown("##### 1️⃣ Total Global")
+                st.markdown("##### Total Global")
                 df_total = df_genre.groupby('sexe', as_index=False)['nb_pers'].sum()
                 df_total['sexe'] = df_total['sexe'].map({'M': 'Hommes', 'F': 'Femmes'})
                 df_total = df_total.rename(columns={'sexe': 'Genre', 'nb_pers': 'Total'})
@@ -152,7 +152,7 @@ else:
 
             # --- TABLEAU 2 : DÉTAIL PAR DIPLÔME ---
             with col_tab2:
-                st.markdown("##### 2️⃣ Détail par diplôme")
+                st.markdown("##### Détail par diplôme")
                 # Tableau croisé dynamique
                 pivot_genre = df_genre.pivot_table(index='diplome', columns='sexe', values='nb_pers', aggfunc='sum').fillna(0).astype(int)
                 if 'M' in pivot_genre.columns: pivot_genre.rename(columns={'M': 'Hommes'}, inplace=True)
@@ -167,7 +167,7 @@ else:
             st.divider()
             
             # --- GRAPHIQUE EN SEGMENTS ---
-            st.markdown("##### 📊 Visualisation par segment (Proportion Hommes / Femmes)")
+            st.markdown("##### Visualisation par segment (Proportion Hommes / Femmes)")
             df_genre_grouped = df_genre.groupby(['diplome', 'sexe'], as_index=False)['nb_pers'].sum()
             
             # On trie pour avoir les plus grands en haut
@@ -200,7 +200,7 @@ else:
         
         csv = df_actif.to_csv(index=False, sep=";").encode('utf-8-sig')
         st.download_button(
-            label=f"📥 Télécharger les données ({annee_titre})",
+            label=f"Télécharger les données ({annee_titre})",
             data=csv,
             file_name=f'export_{annee_titre[:4]}_{ville_choisie.replace(" ", "_")}.csv',
             mime='text/csv',
