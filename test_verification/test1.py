@@ -28,6 +28,11 @@ def load_data():
         # On lit les fichiers générés par le script 01
         df_22 = pd.read_csv("data_filtered/2022/CLEAN_1_Niveaux_etudes_2022.csv", sep=";")
         df_hist = pd.read_csv("data_filtered/2017/CLEAN_1_Niveaux_etudes_2017.csv", sep=";")
+        
+        # ⚠️ CORRECTION : On force la localisation à être du texte pour éviter le plantage du "sorted()"
+        df_22['localisation'] = df_22['localisation'].astype(str)
+        df_hist['localisation'] = df_hist['localisation'].astype(str)
+        
         return df_22, df_hist
     except FileNotFoundError:
         return None, None
@@ -43,7 +48,6 @@ if df_2022 is None or df_historique is None:
 # 3. BARRE LATÉRALE (FILTRES GLOBAUX)
 # ==========================================
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135810.png", width=80)
     st.header("Filtres")
     
     # On liste toutes les villes proprement

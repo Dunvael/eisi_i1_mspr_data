@@ -1,187 +1,70 @@
-import streamlit as st
 import pandas as pd
-import plotly.express as px
+from pathlib import Path
+import sys
 
-# ==========================================
-# 1. CONFIGURATION DE LA PAGE
-# ==========================================
-st.set_page_config(
-    page_title="MSPR - Dashboard Niveaux d'études", 
-    page_icon="🎓", 
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# ==============================================================================
+# 1. CONFIGURATION
+# ==============================================================================
+BASE_DIR = Path(".")
 
-st.markdown("""
-    <style>
-    .stMetric { background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #1f77b4; }
-    </style>
-    """, unsafe_allow_html=True)
+# ⚠️ Fichier brut INSEE (Vérifie bien ton chemin exact comme on l'avait corrigé)
+FILE_RAW_COMMUNES = BASE_DIR / "data_raw" / "2022_raw" / "lien vers code communes 2022" / "commune_2022.csv"
 
-# ==========================================
-# 2. CHARGEMENT DES DONNÉES
-# ==========================================
-@st.cache_data
-def load_data():
+# Dossier d'export
+DIR_FILTERED = BASE_DIR / "data_filtered"
+DIR_FILTERED.mkdir(parents=True, exist_ok=True)
+
+# ==============================================================================
+# 2. NETTOYAGE DU MASTER
+# ==============================================================================
+def run_etl():
+    print("🚀 DÉMARRAGE : Création du Fichier Master (Toutes les communes incluses)...")
+    
+    if not FILE_RAW_COMMUNES.exists():
+        print(f"❌ ERREUR : Le fichier {FILE_RAW_COMMUNES} est introuvable.")
+        sys.exit(1)
+
     try:
-        df_22 = pd.read_csv("data_filtered/2022/CLEAN_1_Niveaux_etudes_2022.csv", sep=";")
-        df_hist = pd.read_csv("data_filtered/2017/CLEAN_1_Niveaux_etudes_2017.csv", sep=";")
-        return df_22, df_hist
-    except FileNotFoundError:
-        return None, None
+        # --- 1. LECTURE ---
+        print("⏳ Lecture du fichier brut de l'INSEE...")
+        df = pd.read_csv(FILE_RAW_COMMUNES, sep=",", dtype=str, encoding='utf-8')
+        print(f"📊 Données brutes chargées : {len(df):,} lignes.")
 
-df_2022, df_historique = load_data()
+        # ⚠️ LA CORRECTION EST ICI : On ne filtre plus ! On garde les COM, COMD, ARM...
+        # On passe directement à la sélection des colonnes.
 
-if df_2022 is None or df_historique is None:
-    st.error("❌ Fichiers de données introuvables.")
-    st.warning("Assure-toi d'avoir exécuté `python scripts_v2\\01_clean_niveaux_etudes.py` avec succès.")
-    st.stop()
-
-# ==========================================
-# 3. BARRE LATÉRALE (FILTRES GLOBAUX)
-# ==========================================
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135810.png", width=80)
-    st.header("🎛️ Filtres")
-    
-    # On récupère toutes les villes
-    toutes_villes = sorted(set(df_2022['localisation']).union(set(df_historique['localisation'])))
-    ville_choisie = st.selectbox("📍 Sélectionner une commune :", ["Toute la région"] + list(toutes_villes))
-    
-    st.divider()
-    st.caption("MSPR - Dossier 1")
-
-# ==========================================
-# 4. LE BOUTON DE SÉLECTION D'ANNÉE
-# ==========================================
-st.title("🎓 Analyse des Niveaux d'Études")
-
-choix_annee = st.radio(
-    "👉 **Choisissez l'année à analyser :**",
-    ["📜 Voir l'Historique (2017 / 2016)", "🚀 Ouvrir l'Année Cible (2022)"],
-    horizontal=True
-)
-
-st.divider()
-
-# ==========================================
-# 5. APPLICATION DES FILTRES ET DU BOUTON
-# ==========================================
-if "2022" in choix_annee:
-    df_actif = df_2022.copy()
-    annee_titre = "2022"
-else:
-    df_actif = df_historique.copy()
-    annee_titre = "Historique (2017/2016)"
-
-if ville_choisie != "Toute la région":
-    df_actif = df_actif[df_actif['localisation'] == ville_choisie]
-
-# ==========================================
-# 6. AFFICHAGE DES RÉSULTATS
-# ==========================================
-st.markdown(f"### 📊 Données affichées : {ville_choisie} | Année : {annee_titre}")
-
-if df_actif.empty:
-    st.warning("⚠️ Aucune donnée ne correspond à tes filtres pour cette année.")
-else:
-    # --- KPIs Globaux ---
-    col1, col2, col3 = st.columns(3)
-    total_recense = df_actif[df_actif['sexe'] == 'T']['nb_pers'].sum()
-    if total_recense == 0: # Sécurité si 'T' est absent
-        total_recense = df_actif['nb_pers'].sum()
+        # --- 2. SÉLECTION ET RENOMMAGE ---
+        colonnes_a_garder = {
+            'COM': 'code_insee',
+            'LIBELLE': 'nom_commune',
+            'DEP': 'code_departement',
+            'REG': 'code_region'
+        }
         
-    diplome_top = df_actif.groupby('diplome')['nb_pers'].sum().idxmax()
-    
-    col1.metric("👥 Personnes Recensées", f"{total_recense:,}".replace(",", " "))
-    col2.metric("🏆 Diplôme Majoritaire", diplome_top)
-    col3.metric("📊 Lignes de données", f"{len(df_actif):,}".replace(",", " "))
+        cols_presentes = [col for col in colonnes_a_garder.keys() if col in df.columns]
+        df = df[cols_presentes].rename(columns=colonnes_a_garder)
 
-    st.write("")
+        # ⚠️ GESTION DES CASES VIDES : On remplace les cases vides (NaN) par du texte vide
+        # Comme ça, la ligne n'est pas supprimée et le nom de la ville est sauvé !
+        df = df.fillna("")
 
-    # --- CRÉATION DES ONGLETS ---
-    tab1, tab2, tab3 = st.tabs(["📊 Vue Globale", "⚖️ Analyse Hommes / Femmes", "🗄️ Données & Export"])
-
-    # ---------------------------------------------------------
-    # ONGLET 1 : VUE GLOBALE
-    # ---------------------------------------------------------
-    with tab1:
-        st.markdown("**Top 10 des diplômes (Tous sexes confondus)**")
-        df_bar = df_actif.groupby('diplome', as_index=False)['nb_pers'].sum().nlargest(10, 'nb_pers').sort_values('nb_pers', ascending=True)
-        
-        fig_bar = px.bar(
-            df_bar, x='nb_pers', y='diplome', orientation='h', 
-            text='nb_pers', color='nb_pers', color_continuous_scale='Blues'
-        )
-        fig_bar.update_traces(texttemplate='%{text:.2s}', textposition='outside')
-        fig_bar.update_layout(xaxis_title="", yaxis_title="", showlegend=False, coloraxis_showscale=False)
-        st.plotly_chart(fig_bar, use_container_width=True)
-
-    # ---------------------------------------------------------
-    # ONGLET 2 : ANALYSE HOMMES / FEMMES (TA DEMANDE)
-    # ---------------------------------------------------------
-    with tab2:
-        st.subheader("Comparaison de la parité par diplôme")
-        
-        # 1. On filtre pour ne garder que M et F (On exclut le Total 'T' pour ne pas fausser)
-        df_genre = df_actif[df_actif['sexe'].isin(['M', 'F'])]
-        
-        # 2. Le Tableau Croisé Dynamique
-        st.markdown("##### 📝 Tableau croisé : Hommes vs Femmes")
-        # On pivote le tableau pour avoir les diplômes en lignes et le sexe en colonnes
-        pivot_genre = df_genre.pivot_table(index='diplome', columns='sexe', values='nb_pers', aggfunc='sum').fillna(0).astype(int)
-        
-        # On renomme proprement
-        if 'M' in pivot_genre.columns: pivot_genre.rename(columns={'M': 'Hommes'}, inplace=True)
-        if 'F' in pivot_genre.columns: pivot_genre.rename(columns={'F': 'Femmes'}, inplace=True)
-        
-        # On calcule le total pour trier du plus grand au plus petit
-        if 'Hommes' in pivot_genre.columns and 'Femmes' in pivot_genre.columns:
-            pivot_genre['Total'] = pivot_genre['Hommes'] + pivot_genre['Femmes']
-            pivot_genre = pivot_genre.sort_values('Total', ascending=False)
+        # --- 3. FORMATAGE ---
+        print("⚙️ Formatage des codes INSEE...")
+        if 'code_insee' in df.columns:
+            df['code_insee'] = df['code_insee'].str.zfill(5)
             
-        st.dataframe(pivot_genre, use_container_width=True)
-        
-        st.divider()
-        
-        # 3. Le Graphique Segmenté (Stacked Bar Chart)
-        st.markdown("##### 📊 Graphique Segmenté (Répartition par diplôme)")
-        # On prépare les données pour que Plotly empile les barres
-        df_genre_grouped = df_genre.groupby(['diplome', 'sexe'], as_index=False)['nb_pers'].sum()
-        
-        # On trie pour avoir les plus gros diplômes en haut
-        diplomes_tries = pivot_genre.index.tolist()
-        df_genre_grouped['diplome'] = pd.Categorical(df_genre_grouped['diplome'], categories=diplomes_tries, ordered=True)
-        df_genre_grouped = df_genre_grouped.sort_values('diplome', ascending=False)
+        if 'nom_commune' in df.columns:
+            df['nom_commune'] = df['nom_commune'].str.strip()
 
-        fig_segment = px.bar(
-            df_genre_grouped, 
-            y='diplome', 
-            x='nb_pers', 
-            color='sexe', 
-            orientation='h',
-            barmode='stack', # C'est ICI qu'on crée le graphique "segmenté" (empilé)
-            color_discrete_map={'M': '#1f77b4', 'F': '#e377c2'}, # Bleu pour Hommes, Rose foncé pour Femmes
-            text='nb_pers'
-        )
-        # On remplace M et F par Hommes et Femmes dans la légende
-        fig_segment.for_each_trace(lambda t: t.update(name = 'Hommes' if t.name == 'M' else 'Femmes'))
-        fig_segment.update_traces(texttemplate='%{text:.2s}', textposition='inside')
-        fig_segment.update_layout(xaxis_title="Nombre de personnes", yaxis_title="", legend_title="Genre")
+        # --- 4. EXPORT ---
+        chemin_sortie = DIR_FILTERED / "MASTER_communes_france.csv"
+        df.to_csv(chemin_sortie, sep=";", index=False, encoding="utf-8-sig")
         
-        st.plotly_chart(fig_segment, use_container_width=True)
+        print(f"✅ SUCCÈS TOTAL : Dictionnaire Master généré AVEC les communes déléguées ! ({len(df):,} communes prêtes)")
+        print(f"📂 Fichier disponible ici : {chemin_sortie}")
 
-    # ---------------------------------------------------------
-    # ONGLET 3 : EXPLORATEUR DE DONNÉES
-    # ---------------------------------------------------------
-    with tab3:
-        st.subheader("Base de données complète")
-        st.dataframe(df_actif, use_container_width=True)
-        
-        csv = df_actif.to_csv(index=False, sep=";").encode('utf-8-sig')
-        st.download_button(
-            label=f"📥 Télécharger les données ({annee_titre})",
-            data=csv,
-            file_name=f'export_{annee_titre[:4]}_{ville_choisie.replace(" ", "_")}.csv',
-            mime='text/csv',
-        )
+    except Exception as e:
+        print(f"❌ Une erreur a interrompu le script : {e}")
+
+if __name__ == "__main__":
+    run_etl()

@@ -8,48 +8,49 @@ import sys
 # ==============================================================================
 BASE_DIR = Path(".")
 
-# Fichier source brut
 RAW_PATH = BASE_DIR / "data_raw" / "2022_raw" / "2. Densite population"
 FILE_DATA = RAW_PATH / "communes-france-2022.csv" 
+FILE_MASTER = BASE_DIR / "data_filtered" / "communes_france.csv"
 
-# Dossier d'export propre
 DIR_2022 = BASE_DIR / "data_filtered" / "2022"
 DIR_2022.mkdir(parents=True, exist_ok=True)
 
 # ==============================================================================
-# 2. RÈGLES MÉTIER (NETTOYAGE TEXTE)
+# 2. OUTILS DE NETTOYAGE
 # ==============================================================================
 def clean_texte_complet(texte):
-    """Supprime les accents et met une majuscule à chaque mot."""
     if pd.isna(texte): return texte
-    # Retrait des accents
     texte_propre = ''.join(c for c in unicodedata.normalize('NFD', str(texte)) if unicodedata.category(c) != 'Mn')
     return texte_propre.strip().title()
-
-def clean_majuscule_seule(texte):
-    """Met une majuscule à chaque mot sans toucher aux accents (pour la localisation)."""
-    if pd.isna(texte): return texte
-    return str(texte).strip().title()
 
 # ==============================================================================
 # 3. MOTEUR DE TRAITEMENT (ETL)
 # ==============================================================================
 def run_etl():
-    print("🚀 DÉMARRAGE : Nettoyage Industriel de la Densité de Population...")
+    print("🚀 DÉMARRAGE : Nettoyage Densité (Toute la France)...")
     
     if not FILE_DATA.exists():
-        print(f"❌ ERREUR CRITIQUE : Le fichier source est introuvable.")
-        print(f"   Vérifie le chemin : {FILE_DATA}")
+        print(f"❌ ERREUR : Fichier source introuvable ({FILE_DATA})")
         sys.exit(1)
 
+    # --- CHARGEMENT DU DICTIONNAIRE ---
+    dict_communes = {}
+    if FILE_MASTER.exists():
+        df_master = pd.read_csv(FILE_MASTER, sep=";", dtype=str, encoding='utf-8')
+        dict_communes = dict(zip(df_master['code_insee'].str.zfill(5), df_master['nom_commune']))
+        print(f"✅ Dictionnaire chargé avec {len(dict_communes):,} villes prêtes pour la traduction.")
+    else:
+        print("❌ ALERTE : Fichier Master introuvable. Les codes INSEE ne pourront pas être traduits !")
+
     try:
-        # --- LECTURE ---
-        df = pd.read_csv(FILE_DATA, sep=None, engine='python', encoding='utf-8')
-        print(f"📊 Données brutes chargées : {len(df)} lignes trouvées.")
+        print("⏳ Lecture des données de densité...")
+        df = pd.read_csv(FILE_DATA, sep=None, engine='python', encoding='utf-8', dtype=str)
+
+        # On cherche la colonne qui contient le code INSEE
+        col_insee = next((col for col in ['code_commune_INSEE', 'code_insee', 'insee', 'COM'] if col in df.columns), None)
 
         # --- SÉLECTION ET RENOMMAGE ---
         colonnes_map = {
-            'nom_sans_accent': 'localisation', 
             'reg_nom': 'region', 
             'dep_nom': 'departement',
             'population': 'nb_pers', 
@@ -58,43 +59,47 @@ def run_etl():
             'grille_densite': 'type_densite'
         }
         
-        # On sécurise : on ne garde que les colonnes qui existent vraiment
+        # On renomme directement le code en 'localisation'
+        if col_insee: 
+            colonnes_map[col_insee] = 'localisation'
+        
         cols_presentes = [col for col in colonnes_map.keys() if col in df.columns]
         df = df[cols_presentes].rename(columns=colonnes_map)
 
         # --- TRANSFORMATIONS ---
-        print("⚙️ Application des règles de nettoyage...")
+        print("⚙️ Application des règles de nettoyage et TRADUCTION des villes...")
 
+        # ⚠️ LA TRADUCTION INFAILLIBLE :
         if 'localisation' in df.columns:
-            df['localisation'] = df['localisation'].apply(clean_majuscule_seule)
+            # 1. On s'assure que le code est propre (ex: "01001")
+            df['localisation'] = df['localisation'].astype(str).str.strip().str.zfill(5)
             
-        if 'region' in df.columns:
-            df['region'] = df['region'].apply(clean_texte_complet)
+            # 2. On le traduit avec le dictionnaire
+            if dict_communes:
+                df['localisation'] = df['localisation'].map(dict_communes).fillna(df['localisation'])
             
-        if 'departement' in df.columns:
-            df['departement'] = df['departement'].apply(clean_texte_complet)
+            # 3. On met de belles majuscules
+            df['localisation'] = df['localisation'].str.title()
             
-        if 'type_densite' in df.columns:
-            df['type_densite'] = df['type_densite'].fillna(0).replace('', 0)
-            
-        if 'nb_pers' in df.columns:
-            df['nb_pers'] = pd.to_numeric(df['nb_pers'], errors='coerce').fillna(0).astype(int)
+        if 'region' in df.columns: df['region'] = df['region'].apply(clean_texte_complet)
+        if 'departement' in df.columns: df['departement'] = df['departement'].apply(clean_texte_complet)
 
-        # ⚠️ LE SECRET DE LA DENSITÉ : On garde les décimales (Float)
+        if 'type_densite' in df.columns: df['type_densite'] = df['type_densite'].fillna("0").replace('', "0")
+        if 'nb_pers' in df.columns: df['nb_pers'] = pd.to_numeric(df['nb_pers'], errors='coerce').fillna(0).astype(int)
+        
         if 'densite' in df.columns:
-            # On remplace les éventuelles virgules par des points pour que Python calcule bien
             df['densite'] = df['densite'].astype(str).str.replace(',', '.')
-            # On convertit en nombre à virgule (Float), SANS ARRRONDIR
             df['densite'] = pd.to_numeric(df['densite'], errors='coerce').fillna(0.0)
+            
+        if 'superficie_km2' in df.columns:
+            df['superficie_km2'] = df['superficie_km2'].astype(str).str.replace(',', '.')
+            df['superficie_km2'] = pd.to_numeric(df['superficie_km2'], errors='coerce').fillna(0.0)
 
         # --- EXPORT ---
         chemin_sortie = DIR_2022 / "CLEAN_2_Densite_population_2022.csv"
+        df.to_csv(chemin_sortie, sep=";", index=False, encoding="utf-8-sig")
         
-        # ⚠️ L'ASTUCE PRO : decimal="," force l'export avec de vraies virgules pour Excel
-        df.to_csv(chemin_sortie, sep=";", decimal=",", index=False, encoding="utf-8-sig")
-        
-        print(f"✅ SUCCÈS TOTAL : Fichier nettoyé généré ! ({len(df)} lignes)")
-        print(f"📂 Emplacement : {chemin_sortie}")
+        print(f"✅ SUCCÈS TOTAL : Fichier généré avec les VRAIS NOMS de villes ! ({len(df):,} communes)")
 
     except Exception as e:
         print(f"❌ Une erreur a interrompu le script : {e}")
