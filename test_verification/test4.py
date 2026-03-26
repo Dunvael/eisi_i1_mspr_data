@@ -2,113 +2,151 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from pathlib import Path
-
-st.set_page_config(layout="wide")
-st.title("📊 Dashboard Activité & Démographie")
 
 # ==========================================
-# LOAD
+# 1. CONFIGURATION
+# ==========================================
+st.set_page_config(page_title="Dashboard Demographie & Activite", layout="wide")
+
+st.markdown("""
+    <style>
+    .stMetric { background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 5px solid #2980b9;}
+    </style>
+    """, unsafe_allow_html=True)
+
+# ==========================================
+# 2. CHARGEMENT DES DONNEES
 # ==========================================
 @st.cache_data
-def load():
-    df22 = pd.read_csv("data_filtered/activite/CLEAN_activite_2022.csv", sep=";")
-    df16 = pd.read_csv("data_filtered/activite/CLEAN_activite_2016.csv", sep=";")
-    return df22, df16
+def load_data():
+    # LA CORRECTION EST ICI : on force 'code_insee' et 'annee' en texte (str)
+    df_22 = pd.read_csv("data_filtered/2022/CLEAN_4_Population_Activite_2022.csv", sep=";", dtype={'code_insee': str, 'annee': str})
+    df_16 = pd.read_csv("data_filtered/2016/CLEAN_4_Population_Activite_2016.csv", sep=";", dtype={'code_insee': str, 'annee': str})
+    
+    df = pd.concat([df_16, df_22], ignore_index=True)
+    
+    # On s'assure que les colonnes de statistiques sont bien des nombres
+    cols_num = df.columns[3:]
+    df[cols_num] = df[cols_num].apply(pd.to_numeric, errors='coerce').fillna(0)
+    
+    return df
 
-df_22, df_16 = load()
+df_all = load_data()
 
-# ==========================================
-# SIDEBAR
-# ==========================================
-ville = st.sidebar.selectbox(
-    "Ville",
-    ["France entière"] + sorted(df_22["localisation"].unique())
-)
+# Identification des colonnes
+cols_age = df_all.columns[3:9].tolist()
+cols_sec = df_all.columns[9:17].tolist()
 
-# ==========================================
-# FILTER
-# ==========================================
-def get_data(df):
-    if ville == "France entière":
-        return df.drop(columns=["localisation"]).sum()
-    return df[df["localisation"] == ville].iloc[0]
-
-data_22 = get_data(df_22)
-data_16 = get_data(df_16)
+lbl_age = ["0-14 ans", "15-29 ans", "30-44 ans", "45-59 ans", "60-74 ans", "75+ ans"]
+lbl_sec = ["Agriculture", "Industrie", "Construction", "Commerce/Transp", "Admin/Sante", "Autres", "Services", "Non precise"]
 
 # ==========================================
-# SAFE COLS
+# 3. FILTRES (BARRE LATERALE)
 # ==========================================
-cols_age = [c for c in df_22.columns if c.startswith("P_")]
-cols_age = [c for c in cols_age if c in data_22.index and c in data_16.index]
-
-cols_stat = [c for c in df_22.columns if c.startswith("C_")]
-cols_stat = [c for c in cols_stat if c in data_22.index and c in data_16.index]
+with st.sidebar:
+    st.title("Filtres d'Analyse")
+    
+    liste_villes = sorted(df_all['localisation'].dropna().unique())
+    choix_ville = st.selectbox("Commune ciblee :", ["Global (Toutes les communes)"] + list(liste_villes))
+    choix_annee = st.selectbox("Annee :", ["Comparaison (2016 vs 2022)", "2022", "2016"])
+    choix_age = st.selectbox("Tranche d'age :", ["Toutes les tranches"] + lbl_age)
 
 # ==========================================
-# KPI
+# 4. PREPARATION DES DONNEES FILTREES
 # ==========================================
-pop22 = data_22[cols_age].sum()
-pop16 = data_16[cols_age].sum()
+if choix_ville == "Global (Toutes les communes)":
+    df_ville = df_all.groupby('annee')[cols_age + cols_sec].sum().reset_index()
+else:
+    df_ville = df_all[df_all['localisation'] == choix_ville]
 
-evol = ((pop22 - pop16) / pop16) * 100 if pop16 != 0 else 0
+def get_vals(year, columns):
+    subset = df_ville[df_ville['annee'] == year]
+    if not subset.empty:
+        return subset[columns].values[0].tolist()
+    return [0] * len(columns)
+
+# Extraction avec des chaines de caracteres ("2016", "2022")
+val_age_16 = get_vals("2016", cols_age)
+val_age_22 = get_vals("2022", cols_age)
+val_sec_16 = get_vals("2016", cols_sec)
+val_sec_22 = get_vals("2022", cols_sec)
+
+if choix_age != "Toutes les tranches":
+    idx = lbl_age.index(choix_age)
+    lbl_age_disp = [lbl_age[idx]]
+    val_age_16_disp = [val_age_16[idx]]
+    val_age_22_disp = [val_age_22[idx]]
+else:
+    lbl_age_disp, val_age_16_disp, val_age_22_disp = lbl_age, val_age_16, val_age_22
+
+# ==========================================
+# 5. KPIS
+# ==========================================
+st.title("Analyse de la Population et de l'Activite")
+
+pop_16, pop_22 = sum(val_age_16_disp), sum(val_age_22_disp)
+actifs_16, actifs_22 = sum(val_sec_16), sum(val_sec_22)
 
 c1, c2, c3 = st.columns(3)
-c1.metric("Population 2022", f"{int(pop22):,}".replace(",", " "))
-c2.metric("Population 2016", f"{int(pop16):,}".replace(",", " "))
-c3.metric("Evolution", f"{evol:.2f} %", delta=f"{evol:.2f}%")
+titre_pop = f"Population ({choix_age})" if choix_age != "Toutes les tranches" else "Population Totale"
+
+if choix_annee == "2016":
+    c1.metric(f"{titre_pop} (2016)", f"{int(pop_16):,} ".replace(",", " "))
+    c2.metric("Personnes Actives (2016)", f"{int(actifs_16):,} ".replace(",", " "))
+    c3.metric("Taux d'Activite", f"{(actifs_16/sum(val_age_16)*100):.1f}%" if sum(val_age_16) else "N/A")
+elif choix_annee == "2022":
+    c1.metric(f"{titre_pop} (2022)", f"{int(pop_22):,} ".replace(",", " "))
+    c2.metric("Personnes Actives (2022)", f"{int(actifs_22):,} ".replace(",", " "))
+    c3.metric("Taux d'Activite", f"{(actifs_22/sum(val_age_22)*100):.1f}%" if sum(val_age_22) else "N/A")
+else:
+    c1.metric(f"{titre_pop} (2022)", f"{int(pop_22):,} ".replace(",", " "), f"{((pop_22-pop_16)/pop_16*100):.2f}% vs 2016" if pop_16 else None)
+    c2.metric("Personnes Actives (2022)", f"{int(actifs_22):,} ".replace(",", " "), f"{((actifs_22-actifs_16)/actifs_16*100):.2f}% vs 2016" if actifs_16 else None)
+    c3.metric("Taux d'Activite", f"{(actifs_22/sum(val_age_22)*100):.1f}%" if sum(val_age_22) else "N/A")
+
+st.write("---")
 
 # ==========================================
-# AGE
+# 6. ONGLETS ET GRAPHIQUES
 # ==========================================
-st.subheader("👥 Répartition âge")
+tab_demo, tab_eco, tab_data = st.tabs(["Demographie", "Secteurs d'Activite", "Base de Donnees"])
 
-df_age = pd.DataFrame({
-    "Tranche": cols_age,
-    "2016": data_16[cols_age].values,
-    "2022": data_22[cols_age].values
-})
+with tab_demo:
+    st.subheader("Structure par Age")
+    fig_age = go.Figure()
+    
+    if choix_annee in ["Comparaison (2016 vs 2022)", "2016"]:
+        fig_age.add_trace(go.Bar(name='2016', x=lbl_age_disp, y=val_age_16_disp, marker_color='rgba(149, 165, 166, 0.8)'))
+    if choix_annee in ["Comparaison (2016 vs 2022)", "2022"]:
+        fig_age.add_trace(go.Bar(name='2022', x=lbl_age_disp, y=val_age_22_disp, marker_color='#2980b9'))
+        
+    fig_age.update_layout(barmode='group', xaxis_title="Tranches d'age", yaxis_title="Habitants")
+    st.plotly_chart(fig_age, width="stretch")
 
-fig = go.Figure()
-fig.add_bar(x=df_age["Tranche"], y=df_age["2016"], name="2016")
-fig.add_bar(x=df_age["Tranche"], y=df_age["2022"], name="2022")
+with tab_eco:
+    if choix_annee == "Comparaison (2016 vs 2022)":
+        st.subheader("Bilan Net de l'Emploi par Secteur (2016 -> 2022)")
+        diff_sec = [v22 - v16 for v22, v16 in zip(val_sec_22, val_sec_16)]
+        df_diff = pd.DataFrame({"Secteur": lbl_sec, "Variation": diff_sec})
+        
+        fig_sec = px.bar(df_diff, x="Secteur", y="Variation", color="Variation", color_continuous_scale="RdYlGn")
+        st.plotly_chart(fig_sec, width="stretch")
+    else:
+        st.subheader(f"Repartition des Emplois ({choix_annee})")
+        val_ref = val_sec_22 if choix_annee == "2022" else val_sec_16
+        df_bar = pd.DataFrame({"Secteur": lbl_sec, "Effectifs": val_ref})
+        
+        fig_bar = px.bar(df_bar, x="Secteur", y="Effectifs", color="Secteur")
+        st.plotly_chart(fig_bar, width="stretch")
 
-fig.update_layout(barmode="group")
-st.plotly_chart(fig, use_container_width=True)
-
-# ==========================================
-# SECTEURS
-# ==========================================
-st.subheader("🏭 Secteurs")
-
-cols_sec = [c for c in cols_stat if "GSEC" in c]
-
-df_sec = pd.DataFrame({
-    "Secteur": cols_sec,
-    "Valeur": data_22[cols_sec].values
-})
-
-fig2 = px.pie(df_sec, values="Valeur", names="Secteur", hole=0.4)
-st.plotly_chart(fig2, use_container_width=True)
-
-# ==========================================
-# STATUTS
-# ==========================================
-st.subheader("💼 Statuts")
-
-cols_stat_simple = [c for c in cols_stat if "GSEC" not in c]
-
-fig3 = go.Figure()
-fig3.add_bar(x=cols_stat_simple, y=data_16[cols_stat_simple], name="2016")
-fig3.add_bar(x=cols_stat_simple, y=data_22[cols_stat_simple], name="2022")
-
-fig3.update_layout(barmode="group")
-st.plotly_chart(fig3, use_container_width=True)
-
-# ==========================================
-# DEBUG
-# ==========================================
-with st.expander("🧪 Debug"):
-    st.write("Colonnes communes :", len(set(df_22.columns) & set(df_16.columns)))
-    st.dataframe(df_22.head())
+with tab_data:
+    st.subheader("Donnees Brutes")
+    
+    if choix_annee in ["Comparaison (2016 vs 2022)", "2022"]:
+        st.markdown("**Annee 2022**")
+        df_affiche_22 = df_all[df_all['annee'] == "2022"] if choix_ville == "Global (Toutes les communes)" else df_all[(df_all['annee'] == "2022") & (df_all['localisation'] == choix_ville)]
+        st.dataframe(df_affiche_22.head(100), width="stretch", hide_index=True)
+        
+    if choix_annee in ["Comparaison (2016 vs 2022)", "2016"]:
+        st.markdown("**Annee 2016**")
+        df_affiche_16 = df_all[df_all['annee'] == "2016"] if choix_ville == "Global (Toutes les communes)" else df_all[(df_all['annee'] == "2016") & (df_all['localisation'] == choix_ville)]
+        st.dataframe(df_affiche_16.head(100), width="stretch", hide_index=True)
