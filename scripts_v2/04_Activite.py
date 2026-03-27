@@ -1,96 +1,82 @@
 import pandas as pd
+import numpy as np  # <-- Ajout de la bibliothèque Numpy
 from pathlib import Path
-import unicodedata
-import numpy as np
 
 # ==========================================
 # 1. PARAMETRES
 # ==========================================
 BASE_DIR = Path(".")
-FILE_DATA = BASE_DIR / "data_raw/2022_raw/4. Age_activite/base-cc-evol-struct-pop-2022.xlsx"
+FILE_DATA = BASE_DIR / "data_raw/2022_raw/5. Age_immigration/TD_NAT1_2022.xlsx"
+FILE_REFERENTIEL = BASE_DIR / "data_raw/referentiel_communes.csv"
 
 # ==========================================
-# 2. OUTILS DE NETTOYAGE
+# 3. TRAITEMENT
 # ==========================================
-def remove_accents(text):
-    """Enleve les accents et met en majuscules."""
-    if pd.isna(text): return text
-    text = str(text)
-    clean_text = ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
-    return clean_text.strip().upper()
+def process_nationalite(year):
+    print(f"Traitement Nationalite {year} avec Numpy...")
 
-def excel_col_to_idx(col_str):
-    """Convertit la lettre de colonne Excel en index."""
-    num = 0
-    for c in col_str.upper():
-        num = num * 26 + (ord(c) - ord('A') + 1)
-    return num - 1
+    # 3.1 Lecture du fichier (onglet 'COM', titres ligne 11 donc skiprows=10)
+    df = pd.read_excel(FILE_DATA, sheet_name='COM', skiprows=10)
 
-def get_col_range(start_col, end_col):
-    """Genere une liste d'index entre deux lettres Excel."""
-    return list(range(excel_col_to_idx(start_col), excel_col_to_idx(end_col) + 1))
+    # Nettoyage immédiat des noms de colonnes (enlève les espaces et sauts de ligne)
+    df.columns = df.columns.astype(str).str.strip().str.replace('\n', '')
 
-# ==========================================
-# 3. TRAITEMENT DES DONNEES
-# ==========================================
-def process_year(sheet_name, year):
-    print(f"Traitement de l'annee {year}...")
+    # 3.2 Sélection et renommage
+    df = df.rename(columns={df.columns[0]: 'code_insee', df.columns[1]: 'localisation'})
     
-    # 3.1 Lecture du fichier
-    df = pd.read_excel(FILE_DATA, sheet_name=sheet_name, skiprows=5)
-
-    # 3.2 Selection des colonnes cibles
-    idx_base = [excel_col_to_idx('A'), excel_col_to_idx('D')]
-    idx_age = get_col_range('G', 'L')
-    idx_sec_1524 = get_col_range('CE', 'CL')
-    idx_sec_2554 = get_col_range('CN', 'CU')
-    idx_sec_55p = get_col_range('CW', 'DD')
-    
-    colonnes_a_garder = idx_base + idx_age + idx_sec_1524 + idx_sec_2554 + idx_sec_55p
-    df = df.iloc[:, colonnes_a_garder].copy()
-
-   
-    col_code = df.columns[0]
-    col_lib = df.columns[1]
-    df = df.rename(columns={col_lib: 'localisation', col_code: 'code_insee'})
-    
-    # 3.4 Nettoyage du texte et des codes
-    df['localisation'] = df['localisation'].apply(remove_accents)
     df['code_insee'] = df['code_insee'].astype(str).str.zfill(5)
     df['annee'] = str(year)
 
+    # 3.3 JOINTURE RÉFÉRENTIEL (Pour les accents)
+    if FILE_REFERENTIEL.exists():
+        df_ref = pd.read_csv(FILE_REFERENTIEL, sep=";", dtype={'code_insee': str})
+        df = pd.merge(df, df_ref[['code_insee', 'nom_commune_propre']], on='code_insee', how='left')
+        df['localisation'] = df['nom_commune_propre'].fillna(df['localisation'])
 
-    # 3.7 Selection finale et sauvegarde
-    colonnes_finales = ['code_insee', 'localisation', 'annee'] 
+    # 3.4 CONVERSION NUMÉRIQUE ET ARRONDI NUMPY
+    cols_stats = [c for c in df.columns if c.startswith('AGE')]
+    
+    # Étape A : On transforme le texte en vrai nombre, on remplace le vide par 0
+    df[cols_stats] = df[cols_stats].apply(pd.to_numeric, errors='coerce').fillna(0)
+    
+    # Étape B : On utilise Numpy pour forcer 2 décimales sur toutes ces colonnes d'un coup
+    df[cols_stats] = np.round(df[cols_stats], 2)
+
+    # 3.5 AGRÉGATION (Calcul des tranches par nationalité)
+    try:
+        # --- 15 à 24 ans ---
+        df['FR_15_24'] = df['AGE415_INATC1_SEXE1'] + df['AGE415_INATC1_SEXE2']
+        df['ET_15_24'] = df['AGE415_INATC2_SEXE1'] + df['AGE415_INATC2_SEXE2']
+
+        # --- 25 à 54 ans ---
+        df['FR_25_54'] = df['AGE425_INATC1_SEXE1'] + df['AGE425_INATC1_SEXE2']
+        df['ET_25_54'] = df['AGE425_INATC2_SEXE1'] + df['AGE425_INATC2_SEXE2']
+
+        # --- 55 ans ou plus ---
+        df['FR_55_PLUS'] = df['AGE455_INATC1_SEXE1'] + df['AGE455_INATC1_SEXE2']
+        df['ET_55_PLUS'] = df['AGE455_INATC2_SEXE1'] + df['AGE455_INATC2_SEXE2']
+    except KeyError as e:
+        print(f"Erreur : La colonne {e} est introuvable.")
+        return
+
+    # 3.6 SELECTION FINALE
+    colonnes_finales = [
+        'code_insee', 'localisation', 'annee',
+        'FR_15_24', 'ET_15_24', 'FR_25_54', 'ET_25_54', 'FR_55_PLUS', 'ET_55_PLUS'
+    ]
     df_final = df[colonnes_finales]
 
-
-    colonnes_statiques = [c for c in df.columns if c not in ['code_insee', 'localisation', 'annee']]
-    # df[colonnes_statiques] = df[colonnes_statiques].apply(pd.to_numeric, errors='coerce').fillna(0).round(2)
-
-    df[colonnes_statiques] = df[colonnes_statiques].apply(pd.to_numeric, errors='coerce')
-    df[colonnes_statiques] = df[colonnes_statiques].fillna(0)
-    df[colonnes_statiques] = np.floor(df[colonnes_statiques]* 100) / 100
-    df[colonnes_statiques] = df[colonnes_statiques].replace(0.0, 0)
-
-    colonnes_finales = ['code_insee', 'localisation', 'annee'] + colonnes_statiques
-    df_final = df[colonnes_finales]
-
-
+    # 3.7 SAUVEGARDE
     dossier_sortie = BASE_DIR / "data_filtered" / str(year)
     dossier_sortie.mkdir(parents=True, exist_ok=True)
-    fichier_sortie = dossier_sortie / f"CLEAN_4_Population_Activite_{year}.csv"
+    fichier_sortie = dossier_sortie / f"CLEAN_5_Nationalite_{year}.csv"
     
-    df_final.to_csv(fichier_sortie, sep=";", index=False, encoding="utf-8-sig")
-    print(f"Termine pour {year}. Fichier cree : {fichier_sortie.name}")
+    # Le paramètre decimal="." garantit que les décimales Numpy soient bien lues par ton Dashboard
+    df_final.to_csv(fichier_sortie, sep=";", index=False, encoding="utf-8-sig", decimal=".")
+    print(f"Succès ! Fichier créé : {fichier_sortie.name} ({len(df_final)} communes)")
 
-# ==========================================
-# 4. LANCEMENT
-# ==========================================
 if __name__ == "__main__":
     if FILE_DATA.exists():
-        process_year('COM_2022', 2022)
-        process_year('COM_2016', 2016)
-        print("Script d'extraction termine avec succes.")
+        process_nationalite(2022)
     else:
-        print(f"Erreur : Le fichier {FILE_DATA} est introuvable.")
+        print(f"Fichier introuvable : {FILE_DATA}")
