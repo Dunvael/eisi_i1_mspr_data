@@ -75,13 +75,13 @@ def clean_categorie_sociale(year):
     # Conversion numérique
     for col in df.columns:
         if col != "code_insee":
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Totaux
-    df["agri_total"] = df[["agri_15_24","agri_25_54","agri_55p"]].sum(axis=1)
-    df["cadres_total"] = df[["cadres_15_24","cadres_25_54","cadres_55p"]].sum(axis=1)
-    df["employes_total"] = df[["employes_15_24","employes_25_54","employes_55p"]].sum(axis=1)
-    df["ouvriers_total"] = df[["ouvriers_15_24","ouvriers_25_54","ouvriers_55p"]].sum(axis=1)
+    # Totaux → si toutes les valeurs sont NaN → résultat = NaN grace au min_count=1
+    df["agri_total"] = df[["agri_15_24","agri_25_54","agri_55p"]].sum(axis=1, min_count=1)
+    df["cadres_total"] = df[["cadres_15_24","cadres_25_54","cadres_55p"]].sum(axis=1, min_count=1)
+    df["employes_total"] = df[["employes_15_24","employes_25_54","employes_55p"]].sum(axis=1, min_count=1)
+    df["ouvriers_total"] = df[["ouvriers_15_24","ouvriers_25_54","ouvriers_55p"]].sum(axis=1, min_count=1)
 
     # Total actifs
     df["total_actifs"] = (
@@ -92,9 +92,26 @@ def clean_categorie_sociale(year):
     )
 
     # Pourcentages
-    df["pourcentage_agri"] = df["agri_total"] / df["total_actifs"] * 100
-    df["pourcentage_cadres"] = df["cadres_total"] / df["total_actifs"] * 100
-    df["pourcentage_employes"] = df["employes_total"] / df["total_actifs"] * 100
+    df["pourcentage_agri"] = np.where(
+    df["total_actifs"] > 0,
+    (df["agri_total"] / df["total_actifs"]) * 100,
+    np.nan)
+
+    df["pourcentage_cadres"] = np.where(
+    df["total_actifs"] > 0,
+    (df["cadres_total"] / df["total_actifs"]) * 100,
+    np.nan)
+
+    df["pourcentage_employes"] = np.where(
+    df["total_actifs"] > 0,
+    (df["employes_total"] / df["total_actifs"]) * 100,
+    np.nan)
+
+    df["pourcentage_ouvriers"] = np.where(
+    df["total_actifs"] > 0,
+    (df["ouvriers_total"] / df["total_actifs"]) * 100,
+    np.nan)
+    
     df["pourcentage_ouvriers"] = df["ouvriers_total"] / df["total_actifs"] * 100
 
     # Merge avec communes

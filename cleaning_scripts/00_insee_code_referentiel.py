@@ -39,23 +39,27 @@ def run_etl():
         cols_presentes = [col for col in colonnes_a_garder.keys() if col in df.columns]
         df = df[cols_presentes].rename(columns=colonnes_a_garder)
 
-        # GESTION DES CASES VIDES : On remplace les cases vides (NaN) par du texte vide : ligne pas supprimée et nom de ville conservé !
-        df = df.fillna("")
-
-        # 3. FORMATAGE
+        df = df.dropna(subset=["code_insee"])
+        df["nom_commune"] = df["nom_commune"].fillna("inconnu")
+        
         print("Formatage des codes INSEE...")
-        if 'code_insee' in df.columns:
-            df['code_insee'] = df['code_insee'].str.zfill(5)
-            
-        if 'nom_commune' in df.columns:
-            df['nom_commune'] = df['nom_commune'].str.strip()
+        df["code_insee"] = df["code_insee"].astype(str).str.zfill(5)
+        df["nom_commune"] = df["nom_commune"].astype(str).str.strip()
+        
 
-        # 4. EXPORT
+        df = df.drop_duplicates(subset=["code_insee"])
+
+        print(df.isna().sum())
+        
+
+        # EXPORT
         chemin_sortie = DIR_CLEANED / "communes_2022_cleaned.csv"
         df.to_csv(chemin_sortie, sep=";", index=False, encoding="utf-8-sig")
         
         print(f"SUCCÈS : Fichier nettoyé ! ({len(df):,} communes prêtes)")
         print(f"Fichier disponible ici : {chemin_sortie}")
+        
+        
 
     except Exception as e:
         print(f"Une erreur a interrompu le script : {e}")

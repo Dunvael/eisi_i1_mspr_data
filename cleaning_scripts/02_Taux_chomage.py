@@ -105,10 +105,10 @@ def clean_taux_chomage(year):
             .str.replace(r"\s+", "", regex=True)
             .str.replace(",", ".", regex=False)
         )
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    df["emploi_total"] = df[colonnes_emploi].sum(axis=1)
-    df["chomeurs_total"] = df[colonnes_chomeur].sum(axis=1)
+    df["emploi_total"] = df[colonnes_emploi].sum(axis=1, min_count=1)
+    df["chomeurs_total"] = df[colonnes_chomeur].sum(axis=1, min_count=1)
     df["actifs_total"] = df["emploi_total"] + df["chomeurs_total"]
 
     df["taux_chomage"] = np.where(
@@ -141,8 +141,16 @@ def clean_taux_chomage(year):
 
     print(f"Terminé : {len(df_final)} lignes sauvegardées")
     print(f"Fichier créé : {fichier_sortie}")
-    print(df[df["taux_chomage"] > 70])
     
+
+    print(df.shape)
+    print(df.info())
+    print(df.isna().sum())
+    print(df["taux_chomage"].describe())
+    print("NaN taux chômage :", df["taux_chomage"].isna().sum())
+    print("Taux > 70% :", (df["taux_chomage"] > 70).sum())
+    print("Taux = 100% :", (df["taux_chomage"] == 100).sum())
+        
 
 
 if __name__ == "__main__":

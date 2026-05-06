@@ -1,6 +1,12 @@
 import pandas as pd
 import missingno as msno
 import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+import matplotlib
+matplotlib.use("TkAgg")
+
 
 # Charger le fichier cleaned
 df = pd.read_csv(
@@ -17,33 +23,29 @@ print("\n--- NA PAR COLONNE ---")
 print(df.isna().sum())
 
 # ===== MISSINGNO =====
-
-# 1. Visualiser où sont les NaN
 msno.matrix(df)
 plt.title("Distribution des valeurs manquantes")
 plt.show()
 
-# 2. Quantité de NaN par colonne
 msno.bar(df)
 plt.title("Nombre de valeurs manquantes")
 plt.show()
 
-# 3. Corrélation des NaN (optionnel ici)
-msno.heatmap(df)
-plt.title("Corrélation des valeurs manquantes")
-plt.show()
-
 # ===== DISTRIBUTION =====
-
 plt.figure(figsize=(8,5))
 df["revenu_median"].hist(bins=50)
 plt.title("Distribution du revenu médian")
-plt.xlabel("Revenu")
-plt.ylabel("Fréquence")
+plt.xlabel("Revenu médian")
+plt.ylabel("Nombre de communes")
 plt.show()
 
-# ===== ANALYSE SIMPLE =====
+# ===== BOXPLOT =====
+plt.figure(figsize=(8,3))
+sns.boxplot(x=df["revenu_median"])
+plt.title("Détection des valeurs aberrantes")
+plt.show()
 
+# ===== STATISTIQUES =====
 print("\n--- STATISTIQUES ---")
 print(df["revenu_median"].describe())
 
