@@ -108,10 +108,14 @@ def clean_revenus(year):
     # Renommer
     df = df.rename(columns={"nom_commune": "localisation"})
 
-    # Colonnes finales
-    df_final = df[["localisation", "revenu_median"]].copy()
+    # 🚨 LA MAGIE : Au lieu de supprimer les doublons au hasard, on fait la moyenne des quartiers !
+    df = df.groupby(['code_insee', 'localisation'], as_index=False)['revenu_median'].mean()
+
+    # 🚨 Colonnes finales : ON GARDE ABSOLUMENT LE CODE INSEE
+    df_final = df[["code_insee", "localisation", "revenu_median"]].copy()
+    
     df_final["annee"] = year
-    df_final["revenu_median"] = df_final["revenu_median"].round(2)
+    df_final["revenu_median"] = df_final["revenu_median"].round(0) # Arrondi propre
 
     print("\n--- CONTRÔLE FINAL ---")
     print("Lignes finales :", len(df_final))
@@ -119,14 +123,11 @@ def clean_revenus(year):
     print("Pourcentage NaN final :", round(df_final["revenu_median"].isna().mean() * 100, 2), "%")
     print(df_final.head())
 
-
-
     fichier_sortie = DIR_OUTPUT / f"01_revenus_median_{year}_cleaned.csv"
     df_final.to_csv(fichier_sortie, sep=";", index=False, encoding="utf-8-sig")
 
-    print(f"\nTerminé : {len(df_final)} lignes sauvegardées")
+    print(f"\n✅ Terminé : {len(df_final)} lignes sauvegardées avec leur Code INSEE !")
     print(f"Fichier créé : {fichier_sortie}")
-
 
 if __name__ == "__main__":
     clean_revenus(2021)

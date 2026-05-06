@@ -132,26 +132,28 @@ def clean_taux_chomage(year):
     df = df.dropna(subset=["nom_commune"])
     df = df.rename(columns={"nom_commune": "localisation"})
 
-    df_final = df[["localisation", "taux_chomage"]].copy()
+    # 🚨 LA MAGIE : On fusionne les éventuels quartiers en faisant la moyenne du chômage
+    df = df.groupby(['code_insee', 'localisation'], as_index=False)['taux_chomage'].mean()
+
+    # 🚨 Colonnes finales : ON GARDE ABSOLUMENT LE CODE INSEE !
+    df_final = df[["code_insee", "localisation", "taux_chomage"]].copy()
     df_final["annee"] = year
     df_final["taux_chomage"] = df_final["taux_chomage"].round(2)
 
     fichier_sortie = DIR_OUTPUT / f"02_taux_chomage_{year}_cleaned.csv"
     df_final.to_csv(fichier_sortie, sep=";", index=False, encoding="utf-8-sig")
 
-    print(f"Terminé : {len(df_final)} lignes sauvegardées")
+    print(f"\n✅ Terminé : {len(df_final)} lignes sauvegardées avec leur Code INSEE !")
     print(f"Fichier créé : {fichier_sortie}")
     
-
-    print(df.shape)
-    print(df.info())
-    print(df.isna().sum())
-    print(df["taux_chomage"].describe())
-    print("NaN taux chômage :", df["taux_chomage"].isna().sum())
-    print("Taux > 70% :", (df["taux_chomage"] > 70).sum())
-    print("Taux = 100% :", (df["taux_chomage"] == 100).sum())
-        
-
+    # Contrôles de fin
+    print("\n--- STATISTIQUES FINALES ---")
+    print(df_final.shape)
+    print(df_final.info())
+    print("NaN taux chômage :", df_final["taux_chomage"].isna().sum())
+    print(df_final["taux_chomage"].describe())
+    print("Taux > 70% :", (df_final["taux_chomage"] > 70).sum())
+    print("Taux = 100% :", (df_final["taux_chomage"] == 100).sum())
 
 if __name__ == "__main__":
     clean_taux_chomage(2022)
