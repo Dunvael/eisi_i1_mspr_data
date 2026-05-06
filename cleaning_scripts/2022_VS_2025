@@ -1,0 +1,46 @@
+from dbfread import DBF
+import pandas as pd
+from pathlib import Path
+
+BASE_DIR = Path(".")
+
+FILE_2022 = BASE_DIR / "commune_2022.dbf"
+FILE_2025 = BASE_DIR / "commune_2025.dbf"
+
+# Lire les fichiers DBF
+df_2022 = pd.DataFrame(iter(DBF(FILE_2022, encoding="latin1")))
+df_2025 = pd.DataFrame(iter(DBF(FILE_2025, encoding="latin1")))
+
+# Nettoyer les noms de colonnes
+df_2022.columns = df_2022.columns.astype(str).str.strip()
+df_2025.columns = df_2025.columns.astype(str).str.strip()
+
+# Sécuriser les codes INSEE
+df_2022["COM"] = df_2022["COM"].astype(str).str.zfill(5)
+df_2025["COM"] = df_2025["COM"].astype(str).str.zfill(5)
+
+# Comparaison des codes
+codes_2022 = set(df_2022["COM"])
+codes_2025 = set(df_2025["COM"])
+
+codes_supprimes = codes_2022 - codes_2025
+codes_ajoutes = codes_2025 - codes_2022
+
+# Récupérer les lignes concernées
+df_supprimes = df_2022[df_2022["COM"].isin(codes_supprimes)].copy()
+df_ajoutes = df_2025[df_2025["COM"].isin(codes_ajoutes)].copy()
+
+# Affichage
+print("Communes présentes en 2022 mais absentes en 2025 :", len(df_supprimes))
+print(df_supprimes[["COM", "NCC"]].head(50))
+
+print("\nCommunes présentes en 2025 mais absentes en 2022 :", len(df_ajoutes))
+print(df_ajoutes[["COM", "NCC"]].head(50))
+
+# Export
+df_supprimes.to_csv("communes_2022_absentes_2025.csv", sep=";", index=False, encoding="utf-8-sig")
+df_ajoutes.to_csv("communes_2025_absentes_2022.csv", sep=";", index=False, encoding="utf-8-sig")
+
+print("\nFichiers créés :")
+print("- communes_2022_absentes_2025.csv")
+print("- communes_2025_absentes_2022.csv")
