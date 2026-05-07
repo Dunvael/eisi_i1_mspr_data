@@ -1,135 +1,62 @@
-import streamlit as st
 import pandas as pd
-import plotly.express as px
+import missingno as msno
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# ==========================================
-# 1. CONFIG
-# ==========================================
-st.set_page_config(
-    page_title="MSPR - Densité population 2022",
-    page_icon="🏙️",
-    layout="wide"
+df = pd.read_csv(
+    "data_cleaned/2022/04_densite_population_2022_cleaned.csv",
+    sep=";"
 )
 
-st.title("Analyse densité et population - 2022")
+cols = [
+    "population",
+    "superficie_km2",
+    "densite"]
 
-# ==========================================
-# 2. LOAD DATA
-# ==========================================
-@st.cache_data
-def load_data():
-    try:
-        df = pd.read_csv(
-            "data_cleaned/2022/04_densite_population_2022.csv",
-            sep=";"
-        )
+print("\n--- INFO DATASET ---")
+print(df.shape)
+print(df.info())
 
-        df["localisation"] = df["localisation"].astype(str)
+print("\n--- NA PAR COLONNE ---")
+print(df.isna().sum())
 
-        df["population"] = pd.to_numeric(df["population"], errors="coerce")
-        df["superficie_km2"] = pd.to_numeric(df["superficie_km2"], errors="coerce")
-        df["densite"] = pd.to_numeric(df["densite"], errors="coerce")
+print("\n--- POURCENTAGE DE NaN ---")
+print((df.isna().mean() * 100).round(2))
 
-        return df
+print("\n--- STATISTIQUES ---")
+print(df[cols].describe())
 
-    except FileNotFoundError:
-        return None
+# Missingno
+msno.matrix(df)
+plt.title("Valeurs manquantes - densité population")
+plt.show()
 
+msno.bar(df)
+plt.title("Nombre de valeurs manquantes - densité population")
+plt.show()
 
-df = load_data()
+# Histogrammes
+for col in cols:
+    plt.figure(figsize=(8, 5))
+    df[col].hist(bins=50)
+    plt.title(f"Distribution - {col}")
+    plt.xlabel(col)
+    plt.ylabel("Nombre de communes")
+    plt.show()
 
-if df is None:
-    st.error("❌ Fichier introuvable")
-    st.warning("Lance d'abord : py cleaning_scripts/04_Densite_population.py")
-    st.stop()
+# Boxplots
+for col in cols:
+    plt.figure(figsize=(8, 3))
+    sns.boxplot(x=df[col])
+    plt.title(f"Valeurs aberrantes - {col}")
+    plt.show()
 
-# ==========================================
-# 3. FILTRES
-# ==========================================
-with st.sidebar:
-    st.header("Filtres")
+# Valeurs extrêmes utiles à afficher
+print("\n--- TOP 10 POPULATION ---")
+print(df.sort_values("population", ascending=False).head(10))
 
-    villes = sorted(df["localisation"].dropna().unique())
-    ville = st.selectbox(
-        "Choisir une commune",
-        ["Toute la France"] + villes
-    )
+print("\n--- TOP 10 DENSITÉ ---")
+print(df.sort_values("densite", ascending=False).head(10))
 
-# ==========================================
-# 4. FILTRAGE
-# ==========================================
-df_actif = df.copy()
-
-if ville != "Toute la France":
-    df_actif = df_actif[df_actif["localisation"] == ville]
-
-# ==========================================
-# 5. KPIs
-# ==========================================
-st.subheader(f"Données : {ville}")
-
-col1, col2, col3 = st.columns(3)
-
-col1.metric("Population", f"{int(df_actif['population'].mean()):,}".replace(",", " "))
-col2.metric("Superficie (km²)", f"{df_actif['superficie_km2'].mean():.2f}")
-col3.metric("Densité (hab/km²)", f"{df_actif['densite'].mean():.2f}")
-
-# ==========================================
-# 6. GRAPHIQUES
-# ==========================================
-st.divider()
-
-tab1, tab2, tab3 = st.tabs(["Top densité", "Corrélation", "Données"])
-
-# -----------------------------
-# TAB 1 : TOP DENSITÉ
-# -----------------------------
-with tab1:
-    st.subheader("Top 10 densité")
-
-    top = df.sort_values("densite", ascending=False).head(10)
-
-    fig = px.bar(
-        top,
-        x="densite",
-        y="localisation",
-        orientation="h",
-        text="densite",
-        color="densite",
-        color_continuous_scale="Reds"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# -----------------------------
-# TAB 2 : CORRÉLATION
-# -----------------------------
-with tab2:
-    st.subheader("Population vs densité")
-
-    fig = px.scatter(
-        df,
-        x="population",
-        y="densite",
-        hover_name="localisation",
-        opacity=0.6
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# -----------------------------
-# TAB 3 : TABLE
-# -----------------------------
-with tab3:
-    st.subheader("Données brutes")
-
-    st.dataframe(df_actif, use_container_width=True)
-
-    csv = df_actif.to_csv(index=False, sep=";").encode("utf-8-sig")
-
-    st.download_button(
-        "Télécharger",
-        csv,
-        "export_densite_population.csv",
-        "text/csv"
-    )
+print("\n--- SUPERFICIE <= 0 ---")
+print(df[df["superficie_km2"] <= 0])

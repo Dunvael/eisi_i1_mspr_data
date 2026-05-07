@@ -112,11 +112,16 @@ def clean_categorie_sociale(year):
     (df["ouvriers_total"] / df["total_actifs"]) * 100,
     np.nan)
     
-    df["pourcentage_ouvriers"] = df["ouvriers_total"] / df["total_actifs"] * 100
 
     # Merge avec communes
     df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str)
+    df_ref = df_ref[["code_insee", "nom_commune"]]
+    df_ref["code_insee"] = df_ref["code_insee"].astype(str).str.zfill(5)
+    df_ref = df_ref.drop_duplicates(subset=["code_insee"])
+
     df = pd.merge(df, df_ref, on="code_insee", how="left")
+
+    print("Communes non trouvées :", df["nom_commune"].isna().sum())
 
     df = df.rename(columns={"nom_commune": "localisation"})
 

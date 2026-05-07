@@ -25,7 +25,9 @@ def clean_creation_entreprises(year):
 
     # 1. REFERENTIEL
     df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str)
-    df_ref["code_insee"] = df_ref["code_insee"].str.zfill(5)
+    df_ref = df_ref[["code_insee", "nom_commune"]]
+    df_ref["code_insee"] = df_ref["code_insee"].astype(str).str.zfill(5)
+    df_ref = df_ref.drop_duplicates(subset=["code_insee"])
 
     # 2. LECTURE DATA
     # Lecture sans header car le fichier a des lignes de titre au-dessus
@@ -63,7 +65,7 @@ def clean_creation_entreprises(year):
         print(df.columns.tolist())
         sys.exit(1)
 
-    df["nb_creations_entreprises"] = pd.to_numeric(df["2022"], errors="coerce").fillna(0) #coerce → NaN
+    df["nb_creations_entreprises"] = pd.to_numeric(df["2022"], errors="coerce")
 
     # 5. MERGE
     df = pd.merge(
@@ -82,13 +84,13 @@ def clean_creation_entreprises(year):
     ]].copy()
 
     df_final = df_final.dropna(subset=["localisation"]) #supprime localisation = NaN (vide)
-    df_final = df_final[df_final["localisation"].astype(str).str.strip() != ""] #supprime champs vides
-    df_final["nb_creations_entreprises"] = df_final["nb_creations_entreprises"].astype(int)
+    df_final = df_final[df_final["localisation"].astype(str).str.strip() != ""] #supprime champs vides dans loc'
+    
 
     df_final["annee"] = year
 
     # 7. EXPORT
-    fichier = DIR_OUTPUT / f"08_creation_entreprises_{year}.csv"
+    fichier = DIR_OUTPUT / f"08_creation_entreprises_{year}_cleaned.csv"
     df_final.to_csv(fichier, sep=";", index=False, encoding="utf-8-sig")
 
     print(f"Fichier créé : {fichier}")

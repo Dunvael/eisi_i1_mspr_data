@@ -27,6 +27,7 @@ def clean_taux_chomage(year):
     df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str, encoding="utf-8")
     df_ref = df_ref[["code_insee", "nom_commune"]]
     df_ref["code_insee"] = df_ref["code_insee"].astype(str).str.zfill(5)
+    df_ref = df_ref.drop_duplicates(subset=["code_insee"])
 
     # Trouver la ligne où commence le vrai tableau
     df_preview = pd.read_excel(FILE_DATA, nrows=20, header=None)

@@ -59,7 +59,7 @@ def clean_demographie(year):
     df["CR"] = df["CR"].astype(str).str.zfill(3)
     df["code_insee"] = df["DR"] + df["CR"]
 
-    df = df[df["STABLE"].astype(str).str.strip() == "1"] #On garde uniquement les communes STABLES (communes non fusionnées non supprimée)
+    #df = df[df["STABLE"].astype(str).str.strip() == "1"] #On garde uniquement les communes STABLES (communes non fusionnées non supprimée)
 
 
     # Colonnes source → colonnes propres
@@ -96,8 +96,8 @@ def clean_demographie(year):
             print("Colonnes disponibles :", df.columns.tolist())
             sys.exit(1)
 
-        hommes = pd.to_numeric(df[col_hommes], errors="coerce").fillna(0)
-        femmes = pd.to_numeric(df[col_femmes], errors="coerce").fillna(0)
+        hommes = pd.to_numeric(df[col_hommes], errors="coerce")
+        femmes = pd.to_numeric(df[col_femmes], errors="coerce")
 
         df[tranche] = hommes + femmes
 
@@ -133,6 +133,11 @@ def clean_demographie(year):
         axis=1
     )
 
+
+    df_ref = df_ref[["code_insee", "nom_commune"]]
+    df_ref = df_ref.drop_duplicates(subset=["code_insee"])
+
+
     # Jointure avec le référentiel
     df = pd.merge(df, df_ref, on="code_insee", how="left")
     df = df.rename(columns={"nom_commune": "localisation"})
@@ -148,7 +153,9 @@ def clean_demographie(year):
 
 
     #supprimer les lignes vides
-    df_final = df_final.dropna(subset=["localisation", "pct_jeunes", "pct_seniors", "age_median"]) #Suppression lignes où les variables essentielles sont manquantes
+    #df_final = df_final.dropna(subset=["localisation", "pct_jeunes", "pct_seniors", "age_median"]) #Suppression lignes où les variables essentielles sont manquantes
+    
+    df_final = df_final[df_final["localisation"].notna()]
     df_final = df_final[df_final["localisation"].astype(str).str.strip() != ""]
 
     df_final["annee"] = year #ajout de l'année
@@ -169,6 +176,10 @@ def clean_demographie(year):
     #df_final["pct_jeunes"].isna() |
     #df_final["pct_seniors"].isna() |
     #df_final["age_median"].isna()]
+
+    print("Lignes après lecture :", len(df))
+    print("Communes non trouvées après merge :", df["localisation"].isna().sum())
+    print(df_final.isna().sum())
 
 if __name__ == "__main__":
     clean_demographie(2022)

@@ -27,6 +27,7 @@ def clean_revenus(year):
     df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str, encoding="utf-8")
     df_ref = df_ref[["code_insee", "nom_commune"]]
     df_ref["code_insee"] = df_ref["code_insee"].astype(str).str.zfill(5)
+    df_ref = df_ref.drop_duplicates(subset=["code_insee"])
 
     # Lecture du fichier revenu brut
     try:
@@ -83,6 +84,7 @@ def clean_revenus(year):
 
     df["revenu_median"] = pd.to_numeric(df["revenu_median"], errors="coerce")
 
+
     print("\n--- CONTRÔLE AVANT JOINTURE ---")
     print("Lignes brutes :", len(df_raw))
     print("Codes communes uniques :", df["code_insee"].nunique())
@@ -91,6 +93,10 @@ def clean_revenus(year):
     print(df["revenu_median"].describe())
 
     print("Doublons dans df_ref :", df_ref["code_insee"].duplicated().sum())
+
+
+
+
 
     # Jointure avec référentiel communes
     df = pd.merge(df, df_ref, on="code_insee", how="left")
@@ -101,9 +107,6 @@ def clean_revenus(year):
 
     # Supprimer uniquement les communes non trouvées
     df = df.dropna(subset=["nom_commune"])
-
-    # Supprimer les doublons éventuels
-    df = df.drop_duplicates(subset=["code_insee"])
 
     # Renommer
     df = df.rename(columns={"nom_commune": "localisation"})

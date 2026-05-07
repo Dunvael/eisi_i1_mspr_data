@@ -21,7 +21,7 @@ def clean_densite(year):
     # Chargement
     df = pd.read_csv(FILE_DATA, dtype=str)
 
-    # Colonnes utiles
+    # Colonnes à garder
     df = df[[
         "code_insee",
         "population",
@@ -29,20 +29,27 @@ def clean_densite(year):
         "densite"
     ]]
 
-    # Nettoyage types
+    # Formatage : 123 en 00123
     df["code_insee"] = df["code_insee"].str.zfill(5)
 
-    df["population"] = pd.to_numeric(df["population"], errors="coerce")
+    df["population"] = pd.to_numeric(df["population"], errors="coerce") # si erreur NaN sinon met nombre
     df["superficie_km2"] = pd.to_numeric(df["superficie_km2"], errors="coerce")
     df["densite"] = pd.to_numeric(df["densite"], errors="coerce")
 
     # Merge avec référentiel
-    df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str)
+    df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str) #chargement du referentiel
+    df_ref = df_ref[["code_insee", "nom_commune"]] #nettoyage referentiel : selection des colonnes
 
-    df = pd.merge(df, df_ref, on="code_insee", how="left")
+    df_ref["code_insee"] = df_ref["code_insee"].astype(str).str.zfill(5) 
+    df_ref = df_ref.drop_duplicates(subset=["code_insee"]) #suppressions des doublons
+
+    df = pd.merge(df, df_ref, on="code_insee", how="left") #ajout du nom de commune
+
+    print("Communes non trouvées :", df["nom_commune"].isna().sum()) #debug pr identifier les codes INSEE qui match pas
 
     df = df.rename(columns={"nom_commune": "localisation"})
 
+    #dataset final
     df_final = df[[
         "localisation",
         "population",

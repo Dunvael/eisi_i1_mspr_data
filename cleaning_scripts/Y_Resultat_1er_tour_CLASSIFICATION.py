@@ -4,6 +4,8 @@ from pathlib import Path
 import unicodedata
 import sys
 
+#MODIF A FAIRE : RAJOUTER LE POIDS DES HABITANTS DANS CHAQUE COMMUNE CAR LA CHAQUE COMMUNE A LE MM POIDS !!!!!!
+
 BASE_DIR = Path(".")
 
 FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "12. Resultat1er_tour" / "p2022-resultats-bureaux-t1.csv"

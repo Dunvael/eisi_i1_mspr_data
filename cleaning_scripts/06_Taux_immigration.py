@@ -26,6 +26,7 @@ def clean_taux_immigration(year):
     df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str, encoding="utf-8")
     df_ref = df_ref[["code_insee", "nom_commune"]]
     df_ref["code_insee"] = df_ref["code_insee"].astype(str).str.zfill(5)
+    df_ref = df_ref.drop_duplicates(subset=["code_insee"])
 
     # Trouver la ligne où commence le vrai tableau
     df_preview = pd.read_excel(FILE_DATA, nrows=20, header=None)
@@ -94,21 +95,23 @@ def clean_taux_immigration(year):
             .str.replace(r"\s+", "", regex=True)
             .str.replace(",", ".", regex=False)
         )
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # Calculs
-    df["population_francaise"] = df[colonnes_francais].sum(axis=1)
-    df["population_etrangere"] = df[colonnes_etrangers].sum(axis=1)
+    df["population_francaise"] = df[colonnes_francais].sum(axis=1, min_count=1)
+    df["population_etrangere"] = df[colonnes_etrangers].sum(axis=1, min_count=1)
 
     df["population_totale"] = (
         df["population_francaise"] + df["population_etrangere"]
     )
 
     df["taux_immigration"] = np.where(
-        df["population_totale"] > 0,
+        df["population_totale"] > 0, #si aucune donnée exploitable dans le fichier INSEE alors NaN
         (df["population_etrangere"] / df["population_totale"]) * 100,
         np.nan
     )
+
+   
 
     # Jointure avec le référentiel
     df = pd.merge(
@@ -124,7 +127,7 @@ def clean_taux_immigration(year):
     # Fichier final
     df_final = df[["localisation", "taux_immigration"]].copy()
 
-    df_final = df_final.dropna(subset=["localisation", "taux_immigration"])
+    df_final = df_final.dropna(subset=["localisation"])
     df_final = df_final[df_final["localisation"].astype(str).str.strip() != ""]
 
     df_final["annee"] = year
@@ -135,6 +138,10 @@ def clean_taux_immigration(year):
 
     print(f"Terminé : {len(df_final)} lignes sauvegardées")
     print(f"Fichier créé : {fichier_sortie}")
+
+    print("Lignes après lecture :", len(df))
+    print("Communes non trouvées après merge :", df["localisation"].isna().sum())
+    print(df_final.isna().sum())
 
 
 if __name__ == "__main__":
