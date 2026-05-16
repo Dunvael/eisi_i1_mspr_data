@@ -30,9 +30,9 @@
 git clone https://github.com/Dunvael/eisi_i1_mspr_data.git
 ```
 
-2. Télécharger et enregistrer les datasets (cf. Sources des datasets) dans le dossier xx.
+2. Télécharger et enregistrer les datasets
 3. Donner les autorisations d'exécution au fichier xx.sh : `chmod +x xx.sh`
-4. Executer le script
+4. Executer le script xx.sh
 
 ```Git Bash
 ./xx.sh
