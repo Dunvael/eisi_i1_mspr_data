@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 
+#cmd pr run ce script :     py -m streamlit run test_verification/test0.py
+
+
 # 1. CONFIGURATION PAGE
 st.set_page_config(
     page_title="MSPR - Référentiel Communes 2022",

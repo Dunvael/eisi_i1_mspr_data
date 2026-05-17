@@ -51,6 +51,7 @@ def clean_densite(year):
 
     #dataset final
     df_final = df[[
+        "code_insee",
         "localisation",
         "population",
         "superficie_km2",

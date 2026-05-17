@@ -123,9 +123,25 @@ def clean_categorie_sociale(year):
 
     print("Communes non trouvées :", df["nom_commune"].isna().sum())
 
+    communes_non_trouvees = df[df["nom_commune"].isna()]
+
+    print(
+        communes_non_trouvees[["code_insee"]]
+        .drop_duplicates()
+        .head(200)
+    )
+
+    communes_non_trouvees.to_csv(
+        "debug_categorie_sociale_non_trouvees.csv",
+        sep=";",
+        index=False,
+        encoding="utf-8-sig"
+    )
+
     df = df.rename(columns={"nom_commune": "localisation"})
 
     df_final = df[[
+        "code_insee",
         "localisation",
         "pourcentage_agri",
         "pourcentage_cadres",
@@ -144,6 +160,7 @@ def clean_categorie_sociale(year):
     df_final.to_csv(fichier, sep=";", index=False, encoding="utf-8-sig")
 
     print(f"Fichier créé : {fichier}")
+
 
 
 if __name__ == "__main__":

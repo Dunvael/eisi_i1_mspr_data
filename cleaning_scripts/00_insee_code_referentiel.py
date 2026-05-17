@@ -18,12 +18,12 @@ def run_etl():
     print("NETTOYAGE DU REFERENTIEL CODE INSEE")
     
     if not FILE_RAW_COMMUNES.exists():
-        print(f"❌ ERREUR : Le fichier {FILE_RAW_COMMUNES} est introuvable.")
+        print(f"ERREUR : Le fichier {FILE_RAW_COMMUNES} est introuvable.")
         sys.exit(1)
 
     try:
         #  1. LECTURE 
-        print("⏳ Lecture du fichier brut de l'INSEE...")
+        print("Lecture du fichier brut de l'INSEE...")
         df = pd.read_csv(FILE_RAW_COMMUNES, sep=",", dtype=str, encoding='utf-8')
         print(f"Données brutes chargées : {len(df):,} lignes.")
 
@@ -45,6 +45,22 @@ def run_etl():
         print("Formatage des codes INSEE...")
         df["code_insee"] = df["code_insee"].astype(str).str.zfill(5)
         df["nom_commune"] = df["nom_commune"].astype(str).str.strip()
+        df["code_departement"] = df["code_departement"].astype(str).str.strip()
+        df["code_region"] = df["code_region"].astype(str).str.strip()
+
+
+         # Suppression DOM/TOM
+        dom_codes = ["971", "972", "973", "974", "975", "976"]
+
+        nb_avant = len(df)
+
+        df = df[
+            ~df["code_departement"].isin(dom_codes)
+        ].copy()
+
+        print("\n--- SUPPRESSION DOM/TOM ---")
+        print("Lignes supprimées :", nb_avant - len(df))
+        print("Lignes restantes :", len(df))
         
 
         df = df.drop_duplicates(subset=["code_insee"])

@@ -144,6 +144,7 @@ def clean_demographie(year):
 
     df_final = df[
         [
+            "code_insee",
             "localisation",
             "pct_jeunes",
             "pct_seniors",
@@ -152,9 +153,6 @@ def clean_demographie(year):
     ].copy()
 
 
-    #supprimer les lignes vides
-    #df_final = df_final.dropna(subset=["localisation", "pct_jeunes", "pct_seniors", "age_median"]) #Suppression lignes où les variables essentielles sont manquantes
-    
     df_final = df_final[df_final["localisation"].notna()]
     df_final = df_final[df_final["localisation"].astype(str).str.strip() != ""]
 

@@ -121,11 +121,11 @@ def clean_taux_immigration(year):
         how="left"
     )
 
-    df = df.dropna(subset=["nom_commune"])
+    df = df.dropna(subset=["nom_commune"]) #suppression des codes qui ne sont pas des communes du référentiel
     df = df.rename(columns={"nom_commune": "localisation"})
 
     # Fichier final
-    df_final = df[["localisation", "taux_immigration"]].copy()
+    df_final = df[["code_insee","localisation", "taux_immigration"]].copy()
 
     df_final = df_final.dropna(subset=["localisation"])
     df_final = df_final[df_final["localisation"].astype(str).str.strip() != ""]

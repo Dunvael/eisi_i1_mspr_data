@@ -79,6 +79,7 @@ def clean_creation_entreprises(year):
 
     # 6. FINAL
     df_final = df[[
+        "code_insee",
         "localisation",
         "nb_creations_entreprises"
     ]].copy()

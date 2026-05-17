@@ -3,6 +3,8 @@ import missingno as msno
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+#py analyse_exploratoire\test1.py
+
 
 import matplotlib
 matplotlib.use("TkAgg")
@@ -33,7 +35,7 @@ plt.show()
 
 # ===== DISTRIBUTION =====
 plt.figure(figsize=(8,5))
-df["revenu_median"].hist(bins=50)
+df["revenu_median_final"].hist(bins=50)
 plt.title("Distribution du revenu médian")
 plt.xlabel("Revenu médian")
 plt.ylabel("Nombre de communes")
@@ -41,14 +43,14 @@ plt.show()
 
 # ===== BOXPLOT =====
 plt.figure(figsize=(8,3))
-sns.boxplot(x=df["revenu_median"])
+sns.boxplot(x=df["revenu_median_final"])
 plt.title("Détection des valeurs aberrantes")
 plt.show()
 
 # ===== STATISTIQUES =====
 print("\n--- STATISTIQUES ---")
-print(df["revenu_median"].describe())
+print(df["revenu_median_final"].describe())
 
 # ===== NA CHECK =====
-pourcentage_nan = df["revenu_median"].isna().mean() * 100
+pourcentage_nan = df["revenu_median_final"].isna().mean() * 100
 print(f"\nPourcentage de NaN revenu : {pourcentage_nan:.2f}%")

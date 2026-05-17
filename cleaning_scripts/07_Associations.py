@@ -70,7 +70,7 @@ def clean_associations(year):
     df = df.rename(columns={"nom_commune": "localisation"})
 
     # 6. CLEAN FINAL
-    df_final = df[["localisation", "nb_associations"]].copy()
+    df_final = df[["code_insee", "localisation", "nb_associations"]].copy()
 
     df_final = df_final.dropna(subset=["localisation"])
     df_final = df_final[df_final["localisation"].astype(str).str.strip() != ""]

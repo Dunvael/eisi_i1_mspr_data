@@ -3,6 +3,8 @@ import missingno as msno
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+#py analyse_exploratoire\test2.py
+
 # Charger le fichier cleaned
 df = pd.read_csv(
     "data_cleaned/2022/02_taux_chomage_2022_cleaned.csv",

@@ -21,18 +21,20 @@ def clean_taux_chomage(year):
 
     if not FILE_COMMUNES.exists():
         print(f"Référentiel communes introuvable : {FILE_COMMUNES}")
-        print("Lancer d'abord : py cleaning_scripts/00_create_referentiel.py")
         sys.exit(1)
 
+    #    REFERENTIEL COMMUNES   
     df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str, encoding="utf-8")
+
     df_ref = df_ref[["code_insee", "nom_commune"]]
     df_ref["code_insee"] = df_ref["code_insee"].astype(str).str.zfill(5)
     df_ref = df_ref.drop_duplicates(subset=["code_insee"])
 
-    # Trouver la ligne où commence le vrai tableau
+    #    DETECTION HEADER   
     df_preview = pd.read_excel(FILE_DATA, nrows=20, header=None)
 
     header_idx = None
+
     for i, row in df_preview.iterrows():
         if row.astype(str).str.contains("CODGEO").any():
             header_idx = i
@@ -42,9 +44,10 @@ def clean_taux_chomage(year):
         print("Impossible de trouver CODGEO.")
         sys.exit(1)
 
+    #    LECTURE EXCEL   
     df_raw = pd.read_excel(FILE_DATA, skiprows=header_idx, dtype=str)
 
-    # Nettoyage des noms de colonnes pour éviter les espaces et retours de ligne
+    #    NETTOYAGE NOMS COLONNES   
     df_raw.columns = (
         df_raw.columns
         .astype(str)
@@ -53,10 +56,7 @@ def clean_taux_chomage(year):
         .str.replace(" ", "", regex=False)
     )
 
-    # Colonnes brutes utiles :
-    # INATC1 = Français, INATC2 = Étrangers
-    # SEXE1 = Hommes, SEXE2 = Femmes
-    # TACTR11 = emploi, TACTR12 = chômeur
+    #    COLONNES A GARDER   
     colonnes_a_garder = {
         "CODGEO": "code_insee",
 
@@ -81,6 +81,7 @@ def clean_taux_chomage(year):
         print("Colonnes disponibles :", list(df_raw.columns))
         sys.exit(1)
 
+    #    SELECTION   
     df = df_raw[list(colonnes_a_garder.keys())].rename(columns=colonnes_a_garder)
 
     df["code_insee"] = df["code_insee"].astype(str).str.zfill(5)
@@ -99,18 +100,27 @@ def clean_taux_chomage(year):
         "chomeur_femmes_etrangers",
     ]
 
+    #    CONVERSION NUMERIQUE   
     for col in colonnes_emploi + colonnes_chomeur:
+
         df[col] = (
             df[col]
             .astype(str)
             .str.replace(r"\s+", "", regex=True)
             .str.replace(",", ".", regex=False)
         )
+
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    #    CALCULS   
     df["emploi_total"] = df[colonnes_emploi].sum(axis=1, min_count=1)
+
     df["chomeurs_total"] = df[colonnes_chomeur].sum(axis=1, min_count=1)
-    df["actifs_total"] = df["emploi_total"] + df["chomeurs_total"]
+
+    df["actifs_total"] = (
+        df["emploi_total"] +
+        df["chomeurs_total"]
+    )
 
     df["taux_chomage"] = np.where(
         df["actifs_total"] > 0,
@@ -118,43 +128,144 @@ def clean_taux_chomage(year):
         np.nan
     )
 
-    print(df[df["taux_chomage"] == 100][[
-    "emploi_total",
-    "chomeurs_total",
-    "actifs_total"]])
+ 
 
+    #    MERGE COMMUNES   
     df = pd.merge(
-        df[["code_insee", "taux_chomage"]],
+        df,
         df_ref,
         on="code_insee",
         how="left"
     )
 
+    #    DEBUG AVEC NOM COMMUNE   
+
+    print("\n--- COMMUNES AVEC TAUX_CHOMAGE NaN ---")
+
+    print(df[df["taux_chomage"].isna()][[
+        "code_insee",
+        "nom_commune",
+        "taux_chomage",
+        "emploi_total",
+        "chomeurs_total",
+        "actifs_total"
+    ]])
+
+    print("\n--- COMMUNES AVEC TAUX_CHOMAGE = 100 ---")
+
+    print(df[df["taux_chomage"] == 100][[
+        "code_insee",
+        "nom_commune",
+        "taux_chomage",
+        "emploi_total",
+        "chomeurs_total",
+        "actifs_total"
+    ]])
+
+    #    SUPPRESSION COMMUNES NON TROUVEES   
     df = df.dropna(subset=["nom_commune"])
-    df = df.rename(columns={"nom_commune": "localisation"})
 
-    # 🚨 LA MAGIE : On fusionne les éventuels quartiers en faisant la moyenne du chômage
-    df = df.groupby(['code_insee', 'localisation'], as_index=False)['taux_chomage'].mean()
+    df = df.rename(columns={
+        "nom_commune": "localisation"
+    })
 
-    # 🚨 Colonnes finales : ON GARDE ABSOLUMENT LE CODE INSEE !
-    df_final = df[["code_insee", "localisation", "taux_chomage"]].copy()
+
+        # DEBUG NaN
+ 
+
+    print("\n--- LIGNES AVEC TAUX_CHOMAGE NaN ---")
+
+    print(df[df["taux_chomage"].isna()][[
+        "code_insee",
+        "emploi_total",
+        "chomeurs_total",
+        "actifs_total"
+    ]])
+
+ 
+    # DEBUG TAUX = 100
+ 
+
+    print("\n--- LIGNES AVEC TAUX_CHOMAGE = 100 ---")
+
+    print(df[df["taux_chomage"] == 100][[
+        "code_insee",
+        "emploi_total",
+        "chomeurs_total",
+        "actifs_total",
+        "taux_chomage"
+    ]])
+
+ 
+    # DEBUG TAUX > 70
+ 
+
+    print("\n--- LIGNES AVEC TAUX_CHOMAGE > 70 ---")
+
+    print(df[df["taux_chomage"] > 70][[
+        "code_insee",
+        "emploi_total",
+        "chomeurs_total",
+        "actifs_total",
+        "taux_chomage"
+    ]])
+
+
+    #    FINAL   
+    df_final = df[[
+        "code_insee",
+        "localisation",
+        "taux_chomage"
+    ]].copy()
+
     df_final["annee"] = year
-    df_final["taux_chomage"] = df_final["taux_chomage"].round(2)
 
-    fichier_sortie = DIR_OUTPUT / f"02_taux_chomage_{year}_cleaned.csv"
-    df_final.to_csv(fichier_sortie, sep=";", index=False, encoding="utf-8-sig")
+    df_final["taux_chomage"] = (
+        df_final["taux_chomage"]
+        .round(2)
+    )
 
-    print(f"\n✅ Terminé : {len(df_final)} lignes sauvegardées avec leur Code INSEE !")
-    print(f"Fichier créé : {fichier_sortie}")
-    
-    # Contrôles de fin
-    print("\n--- STATISTIQUES FINALES ---")
+    #    EXPORT   
+    fichier_sortie = (
+        DIR_OUTPUT /
+        f"02_taux_chomage_{year}_cleaned.csv"
+    )
+
+    df_final.to_csv(
+        fichier_sortie,
+        sep=";",
+        index=False,
+        encoding="utf-8-sig"
+    )
+
+    #    STATS   
+    print("\n--- STATS FINALES ---")
+
     print(df_final.shape)
+
     print(df_final.info())
-    print("NaN taux chômage :", df_final["taux_chomage"].isna().sum())
+
+    print(df_final.isna().sum())
+
     print(df_final["taux_chomage"].describe())
-    print("Taux > 70% :", (df_final["taux_chomage"] > 70).sum())
-    print("Taux = 100% :", (df_final["taux_chomage"] == 100).sum())
+
+    print(
+        "NaN taux chômage :",
+        df_final["taux_chomage"].isna().sum()
+    )
+
+    print(
+        "Taux > 70% :",
+        (df_final["taux_chomage"] > 70).sum()
+    )
+
+    print(
+        "Taux = 100% :",
+        (df_final["taux_chomage"] == 100).sum()
+    )
+
+    print(f"\nFichier créé : {fichier_sortie}")
+
 
 if __name__ == "__main__":
     clean_taux_chomage(2022)
