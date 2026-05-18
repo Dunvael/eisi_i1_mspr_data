@@ -16,8 +16,9 @@
 
 ## Prérequis
 
-* Dépendances Python → fichier `requirements.txt` à lancer avec xx.sh
+* Python 3.11+
 * Téléchargement des datasets d'entraînement (2022) et de prédiction (2024) dans le dossier xx → *cf. Sources des datasets*
+* Préparation de l'environnement Python 'dépendances) → fichier `requirements.txt` à lancer avec le script py_libraries.sh (placé à la racine du projet)
 * Script de déploiment automatisé des scripts ETL Python
 
 ---
@@ -31,16 +32,23 @@ git clone https://github.com/Dunvael/eisi_i1_mspr_data.git
 ```
 
 2. Télécharger et enregistrer les datasets
-3. Donner les autorisations d'exécution au fichier xx.sh : `chmod +x xx.sh`
-4. Executer le script xx.sh
+3. Donner les autorisations d'exécution aux fichiers py_libraries.sh et mspr.sh :
+* `chmod +x py_libraries.sh`
+* `chmod +x mspr.sh`
+4. Executer le script py_libraries.sh (installation des dépendances Python nécessaires → fichier `requirements.txt`) :
 
 ```Git Bash
-./xx.sh
+./py_libraries.sh
 ```
 
-Le script xx.sh permet de déployer l'intégralité du pipeline ETL :
+5. Executer le script mspr.sh :
 
-* Installation des dépendances Python nécessaires (fichier `requirements.txt`)
+```Git Bash
+./mspr.sh
+```
+
+Le script mspr.sh permet de déployer l'intégralité du pipeline ETL :
+
 * Génération du dataset d'entrainement (2022)
    * Nettoyage des données collectées
    * Transformation des données
@@ -53,6 +61,17 @@ Le script xx.sh permet de déployer l'intégralité du pipeline ETL :
    * Extraction des données
 * Prédiction du modèle de Machine Learning pour répondre à la problématique de classification électorale et vérifications
 * Affichage des résultats
+
+---
+
+## Sources des datasets
+
+* Datasets bruts à télécharger sur :
+* Datasets nettoyés à télécharger sur :
+
+Tableau des sources des datasets :
+
+...
 
 ---
 
