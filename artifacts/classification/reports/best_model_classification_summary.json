@@ -1,0 +1,5 @@
+{
+    "modele": "XGBoost",
+    "model_file_name": "XGBoost",
+    "f1_weighted": 0.7078
+}

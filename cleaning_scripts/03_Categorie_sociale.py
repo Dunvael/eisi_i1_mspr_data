@@ -91,6 +91,19 @@ def clean_categorie_sociale(year):
         + df["ouvriers_total"]
     )
 
+
+    print("NaN total_actifs :", df["total_actifs"].isna().sum())
+    print("total_actifs = 0 :", (df["total_actifs"] == 0).sum())
+
+    print(df[df["total_actifs"].isna()][[
+        "code_insee",
+        "agri_total",
+        "cadres_total",
+        "employes_total",
+        "ouvriers_total"
+    ]].head(20))
+
+
     # Pourcentages
     df["pourcentage_agri"] = np.where(
     df["total_actifs"] > 0,
@@ -112,6 +125,14 @@ def clean_categorie_sociale(year):
     (df["ouvriers_total"] / df["total_actifs"]) * 100,
     np.nan)
     
+    cols_pct = [
+    "pourcentage_agri",
+    "pourcentage_cadres",
+    "pourcentage_employes",
+    "pourcentage_ouvriers"
+]
+
+    print(df[cols_pct].isna().sum())
 
     # Merge avec communes
     df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str)
@@ -120,25 +141,80 @@ def clean_categorie_sociale(year):
     df_ref = df_ref.drop_duplicates(subset=["code_insee"])
 
     df = pd.merge(df, df_ref, on="code_insee", how="left")
-
-    print("Communes non trouvées :", df["nom_commune"].isna().sum())
+    
 
     communes_non_trouvees = df[df["nom_commune"].isna()]
 
-    print(
-        communes_non_trouvees[["code_insee"]]
-        .drop_duplicates()
-        .head(200)
-    )
+    df = df.dropna(subset=["nom_commune"]).copy()
 
-    communes_non_trouvees.to_csv(
-        "debug_categorie_sociale_non_trouvees.csv",
-        sep=";",
-        index=False,
-        encoding="utf-8-sig"
-    )
+    print("Communes non trouvées :", df["nom_commune"].isna().sum())
 
     df = df.rename(columns={"nom_commune": "localisation"})
+
+    # Lignes avec NaN dans les pourcentages
+    df_nan = df[df[cols_pct].isna().any(axis=1)].copy()
+
+    print("Nombre lignes NaN :", len(df_nan))
+
+    print("\nNaN total_actifs :")
+    print(df_nan["total_actifs"].isna().sum())
+
+    print("\nTotal_actifs = 0 :")
+    print((df_nan["total_actifs"] == 0).sum())
+
+    print("\nAutres cas :")
+    print(
+        df_nan[
+            (~df_nan["total_actifs"].isna()) &
+            (df_nan["total_actifs"] != 0)
+        ][[
+            "code_insee",
+            "localisation",
+            "total_actifs"
+        ]]
+    )
+
+    cols_brutes = [
+    # AGRI
+    "agri_15_24",
+    "agri_25_54",
+    "agri_55p",
+
+    # CADRES
+    "cadres_15_24",
+    "cadres_25_54",
+    "cadres_55p",
+
+    # EMPLOYES
+    "employes_15_24",
+    "employes_25_54",
+    "employes_55p",
+
+    # OUVRIERS
+    "ouvriers_15_24",
+    "ouvriers_25_54",
+    "ouvriers_55p",
+]
+
+    print("\n--- NaN colonnes brutes ---")
+    print(df[cols_brutes].isna().sum())
+
+    print("\n--- Lignes avec NaN partiels ---")
+
+    mask_partiel = (
+        df[cols_brutes].isna().any(axis=1)
+        &
+        ~df[cols_brutes].isna().all(axis=1)
+    )
+
+    print(
+        df[mask_partiel][
+            ["code_insee"] + cols_brutes
+        ].head(50)
+    )
+
+    print("\nNombre lignes NaN partiels :")
+    print(mask_partiel.sum())
 
     df_final = df[[
         "code_insee",

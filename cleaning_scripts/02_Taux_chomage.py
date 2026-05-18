@@ -211,6 +211,83 @@ def clean_taux_chomage(year):
     ]])
 
 
+        # ==========================================
+    # CHECK NaN TAUX CHOMAGE
+    # ==========================================
+
+    df_nan = df[df["taux_chomage"].isna()].copy()
+
+    print("\n--- CHECK NaN taux chômage ---")
+
+    print("Nombre lignes NaN :")
+    print(len(df_nan))
+
+    print("\nNaN actifs_total :")
+    print(df_nan["actifs_total"].isna().sum())
+
+    print("\nactifs_total = 0 :")
+    print((df_nan["actifs_total"] == 0).sum())
+
+    print("\nAutres cas :")
+
+    print(
+        df_nan[
+            (~df_nan["actifs_total"].isna()) &
+            (df_nan["actifs_total"] != 0)
+        ][[
+            "code_insee",
+            "localisation",
+            "emploi_total",
+            "chomeurs_total",
+            "actifs_total"
+        ]]
+    )
+
+    # ==========================================
+    # CHECK COLONNES BRUTES
+    # ==========================================
+
+    cols_brutes = [
+        "emploi_hommes_francais",
+        "emploi_femmes_francais",
+        "emploi_hommes_etrangers",
+        "emploi_femmes_etrangers",
+
+        "chomeur_hommes_francais",
+        "chomeur_femmes_francais",
+        "chomeur_hommes_etrangers",
+        "chomeur_femmes_etrangers",
+    ]
+
+    print("\n--- NaN colonnes brutes ---")
+
+    print(
+        df[cols_brutes]
+        .isna()
+        .sum()
+    )
+
+    mask_partiel = (
+        df[cols_brutes].isna().any(axis=1)
+        &
+        ~df[cols_brutes].isna().all(axis=1)
+    )
+
+    print("\nNombre lignes NaN partiels :")
+    print(mask_partiel.sum())
+
+    print(
+        df[mask_partiel][
+            ["code_insee", "localisation"] + cols_brutes
+        ].head(50)
+    )
+
+
+
+
+
+
+
     #    FINAL   
     df_final = df[[
         "code_insee",

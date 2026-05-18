@@ -142,6 +142,36 @@ def clean_demographie(year):
     df = pd.merge(df, df_ref, on="code_insee", how="left")
     df = df.rename(columns={"nom_commune": "localisation"})
 
+
+    # --------------------------------
+    # DEBUG COMMUNES NON TROUVÉES
+    # --------------------------------
+
+    df_non_trouvees = df[df["localisation"].isna()].copy()
+
+    print("\n--- COMMUNES NON TROUVÉES APRÈS MERGE ---")
+    print(df_non_trouvees.shape)
+
+    print(
+        df_non_trouvees[
+            ["code_insee"]
+        ].head(100)
+    )
+
+    print("\nDébut des codes non trouvés :")
+
+    print(
+        df_non_trouvees["code_insee"]
+        .astype(str)
+        .str[:2]
+        .value_counts()
+        .sort_index()
+    )
+
+    # --------------------------------
+
+
+
     df_final = df[
         [
             "code_insee",
