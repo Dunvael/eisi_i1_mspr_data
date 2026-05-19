@@ -11,7 +11,7 @@ print(" Catégories Sociales")
 BASE_DIR = Path(".")
 FILE_CS_2022 = BASE_DIR / "data_cleaned" / "2022" / "03_categorie_sociale_2022_cleaned.csv"
 FILE_REF = BASE_DIR / "data_cleaned" / "2024" / "00_referentiel_communes_22_24_clean.csv"
-FILE_OUTPUT = BASE_DIR / "data_cleaned" / "2024" / "08_CS" / "08.2_categories_sociales_2024_clean.csv"
+FILE_OUTPUT = BASE_DIR / "data_cleaned" / "2024" / "09_CS" / "09_categories_sociales_2024_clean.csv"
 
 COEFFS_TENDANCE = {'agri': 0.813, 'cadres': 1.060, 'employes': 0.954, 'ouvriers': 0.952}
 
