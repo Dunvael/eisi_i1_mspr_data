@@ -8,7 +8,7 @@ import sys
 BASE_DIR = Path(".")
 
 # Chemin vers le fichier brut fourni par l'INSEE
-FILE_RAW_COMMUNES = BASE_DIR / "data_raw" / "2022_raw" / "0. Code INSEE 2022" / "commune_2022.csv"
+FILE_RAW_COMMUNES = BASE_DIR / "data_raw" / "2022_raw" / "0_code_insee_2022" / "communes_2022.csv"
 
 # Dossier où sera exporté le fichier nettoyé
 DIR_CLEANED = BASE_DIR / "data_cleaned"

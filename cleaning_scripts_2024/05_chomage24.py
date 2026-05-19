@@ -17,7 +17,7 @@ FILE_POP_2024 = BASE_DIR / "data_cleaned" / "2024" / "01_Densite_population" / "
 FILE_DARES_2024 = BASE_DIR / "data_raw" / "2024_raw" / "5. Chomage" / "chomage.csv"
 
 # Ton fichier des âges (La solution parfaite pour la population active !)
-FILE_DATA_2022 = BASE_DIR / "data_raw" / "2022_raw" / "13. Demographie" / "pop-sexe-age-quinquennal6822.xlsx"
+FILE_DATA_2022 = BASE_DIR / "data_raw" / "2022_raw" / "5_demographie_2022" / "DEMOGRAPHIE_PAR_SEXE_PAR_DEP_ET_COM_1968_TO_2022.xlsx"
 
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2024" / "05_Chomage"
 DIR_OUTPUT.mkdir(parents=True, exist_ok=True)

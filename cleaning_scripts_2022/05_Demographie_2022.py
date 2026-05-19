@@ -5,7 +5,7 @@ import sys
 
 BASE_DIR = Path(".")
 
-FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "13. Demographie" / "pop-sexe-age-quinquennal6822.xlsx"
+FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "5_demographie_2022" / "DEMOGRAPHIE_PAR_SEXE_PAR_DEP_ET_COM_1968_TO_2022.xlsx"
 FILE_COMMUNES = BASE_DIR / "data_cleaned" / "communes_2022_cleaned.csv"
 
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2022"

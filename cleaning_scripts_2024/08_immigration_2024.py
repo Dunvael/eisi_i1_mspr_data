@@ -17,7 +17,7 @@ FILE_REF = BASE_DIR / "data_cleaned" / "2024" / "00_referentiel_communes_22_24_c
 FILE_POP_2024 = BASE_DIR / "data_cleaned" / "2024" / "01_Densite_population" / "01.3_population_densite_2024_clean.csv"
 
 # Fichier source INSEE 2022
-FILE_INSEE_EXCEL = BASE_DIR / "data_raw" / "2022_raw" / "6. Sexe_nationalite_immigration" / "TD_NAT2_2022.xlsx"
+FILE_INSEE_EXCEL = BASE_DIR / "data_raw" / "2022_raw" / "6_taux_immigration_2022" / "ACTIVITE_IMMIGRATION_PAR_COM_2022.xlsx"
 
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2024" / "08_Immigration"
 DIR_OUTPUT.mkdir(parents=True, exist_ok=True)
