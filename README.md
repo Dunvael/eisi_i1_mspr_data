@@ -126,5 +126,6 @@ Le script mspr.sh permet de déployer l'intégralité du pipeline ETL :
 * Livrable .pdf "Rapport...." contenant les étapes de réalisation de la MSPR ainsi que les sources des datasets utilisés pour mener à bien le projet POC.
 * Fichier .pbix de visualisation des données de prédiction
 * Données structurées SQLite
+* Code (scripts commentés)
 
 ---
