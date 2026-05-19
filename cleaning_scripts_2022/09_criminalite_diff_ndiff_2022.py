@@ -4,7 +4,7 @@ from pathlib import Path
 BASE_DIR = Path(".")
 
 FILE_DATA = (
-    BASE_DIR / "data_raw" / "2022_raw" / "09_criminalite_2022" / "CRIMINALITE_PAR_COM_2022.parquet"
+    BASE_DIR / "data_raw" / "2022_raw" / "9_criminalite_2022" / "CRIMINALITE_PAR_COM_2022.parquet"
 )
 
 FILE_PASSAGE = (
