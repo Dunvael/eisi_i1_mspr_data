@@ -75,6 +75,11 @@ def clean_creation_entreprises(year):
         how="left"
     )
 
+    print("Communes non trouvées :", df["nom_commune"].isna().sum())
+    print(df[df["nom_commune"].isna()][["code_insee"]].head(50))
+
+    df = df.dropna(subset=["nom_commune"]).copy()
+
     df = df.rename(columns={"nom_commune": "localisation"})
 
     # 6. FINAL
@@ -84,9 +89,6 @@ def clean_creation_entreprises(year):
         "nb_creations_entreprises"
     ]].copy()
 
-    df_final = df_final.dropna(subset=["localisation"]) #supprime localisation = NaN (vide)
-    df_final = df_final[df_final["localisation"].astype(str).str.strip() != ""] #supprime champs vides dans loc'
-    
 
     df_final["annee"] = year
 

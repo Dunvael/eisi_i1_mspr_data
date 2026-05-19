@@ -145,6 +145,10 @@ def clean_categorie_sociale(year):
 
     communes_non_trouvees = df[df["nom_commune"].isna()]
 
+    print("\n--- COMMUNES NON TROUVÉES ---")
+    print(communes_non_trouvees[["code_insee"]].head(50))
+    print("Nombre :", len(communes_non_trouvees))
+
     df = df.dropna(subset=["nom_commune"]).copy()
 
     print("Communes non trouvées :", df["nom_commune"].isna().sum())

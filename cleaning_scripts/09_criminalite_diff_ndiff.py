@@ -11,6 +11,8 @@ FILE_PASSAGE = (
     BASE_DIR / "data_raw" / "2022_raw" / "referentiels" / "table_passage_annuelle_2025.xlsx"
 )
 
+FILE_COMMUNES = BASE_DIR / "data_cleaned" / "communes_2022_cleaned.csv"
+
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2022"
 DIR_OUTPUT.mkdir(parents=True, exist_ok=True)
 
@@ -117,6 +119,28 @@ def clean_criminalite_all(year):
         "Usage de stupéfiants": "taux_usage_stupefiants",
         "Trafic de stupéfiants": "taux_trafic_stupefiants"
     })
+
+
+    # Merge avec référentiel communes
+    df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str)
+    df_ref = df_ref[["code_insee", "nom_commune"]]
+    df_ref["code_insee"] = df_ref["code_insee"].astype(str).str.zfill(5)
+    df_ref = df_ref.drop_duplicates(subset=["code_insee"])
+
+    df_pivot = pd.merge(
+        df_pivot,
+        df_ref,
+        on="code_insee",
+        how="left"
+    )
+
+    print("Communes non trouvées :", df_pivot["nom_commune"].isna().sum())
+    print(df_pivot[df_pivot["nom_commune"].isna()][["code_insee"]].head(50))
+
+    df_pivot = df_pivot.dropna(subset=["nom_commune"]).copy()
+    df_pivot = df_pivot.rename(columns={"nom_commune": "localisation"})
+
+
 
      # EXPORT
     fichier_sortie = DIR_OUTPUT / f"09_criminalite_diff_ndiff_{year}_cleaned.csv"

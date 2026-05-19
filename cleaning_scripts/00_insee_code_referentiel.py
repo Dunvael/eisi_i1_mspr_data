@@ -2,18 +2,23 @@ import pandas as pd
 from pathlib import Path
 import sys
 
-# 1. CONFIGURATION
+# 1. Configuration des chemins : 
 
+# Répertoire racine du projet
 BASE_DIR = Path(".")
 
-# Fichier brut INSEE 
+# Chemin vers le fichier brut fourni par l'INSEE
 FILE_RAW_COMMUNES = BASE_DIR / "data_raw" / "2022_raw" / "0. Code INSEE 2022" / "commune_2022.csv"
 
-# Dossier d'export
+# Dossier où sera exporté le fichier nettoyé
 DIR_CLEANED = BASE_DIR / "data_cleaned"
+
+# Création du dossier de sortie s'il n'existe pas déjà
 DIR_CLEANED.mkdir(parents=True, exist_ok=True)
 
-# 2. NETTOYAGE DU REFERENTIEL
+
+# 2. Nettoyage du référentiel communes : 
+
 def run_etl():
     print("NETTOYAGE DU REFERENTIEL CODE INSEE")
     
@@ -22,38 +27,81 @@ def run_etl():
         sys.exit(1)
 
     try:
-        #  1. LECTURE 
+        #  Étape 1 : Extraction 
+
         print("Lecture du fichier brut de l'INSEE...")
+
+        # Lecture du fichier CSV brut
+        # dtype=str permet de conserver les codes INSEE avec leurs zéros au début
         df = pd.read_csv(FILE_RAW_COMMUNES, sep=",", dtype=str, encoding='utf-8')
+
         print(f"Données brutes chargées : {len(df):,} lignes.")
 
 
-        #  2. SÉLECTION ET RENOMMAGE 
+        #  Étape 2. Transformation : séléction des colonnes
+
+        # Dictionnaire de correspondance entre les noms INSEE et les noms utilisés dans notre projet : 
         colonnes_a_garder = {
+            'TYPECOM': 'type_commune',
             'COM': 'code_insee',
             'LIBELLE': 'nom_commune',
             'DEP': 'code_departement',
             'REG': 'code_region'
         }
-        
+
+        # On garde uniquement les colonnes présentes dans le fichier : cela évite une erreur si une colonne est absente : 
         cols_presentes = [col for col in colonnes_a_garder.keys() if col in df.columns]
+
+        # Sélection et renommage des colonnes : 
         df = df[cols_presentes].rename(columns=colonnes_a_garder)
 
+
+
+        # Étape 3 : Qualité de la donnée : Gestion des valeurs manquantes
+
+        # Suppression des lignes sans code INSEE : le code INSEE est indispensable pour les jointures futures
         df = df.dropna(subset=["code_insee"])
+
+        # Remplacement des noms de communes manquants
         df["nom_commune"] = df["nom_commune"].fillna("inconnu")
+
+
+        # Étape 4 : Normalisation des formats : 
         
         print("Formatage des codes INSEE...")
+
+        # Normalisation du code INSEE sur 5 caractères : 
         df["code_insee"] = df["code_insee"].astype(str).str.zfill(5)
+
+        # Suppression des espaces inutiles dans les champs texte
         df["nom_commune"] = df["nom_commune"].astype(str).str.strip()
         df["code_departement"] = df["code_departement"].astype(str).str.strip()
         df["code_region"] = df["code_region"].astype(str).str.strip()
 
 
-         # Suppression DOM/TOM
+
+        # Étape 5 : Filtrage des arrondissements municipaux 
+
+        # Les arrondissements municipaux de Paris, Lyon et Marseille sont identifiés par le type "ARM".
+        # Ils sont donc retirés pour conserver uniquement les communes principales.
+        if "type_commune" in df.columns:
+            nb_avant = len(df)
+
+            df = df[df["type_commune"] != "ARM"].copy()
+
+            print("\n--- SUPPRESSION ARRONDISSEMENTS MUNICIPAUX ---")
+            print("Lignes supprimées :", nb_avant - len(df))
+            print("Lignes restantes :", len(df))
+
+
+        # Étape 6 : Filtrage des DOM/TOM
+
+        # Liste des codes départements ultramarins exclus du périmètre : 
         dom_codes = ["971", "972", "973", "974", "975", "976"]
 
         nb_avant = len(df)
 
+        # Suppression des communes appartenant aux DOM/TOM
         df = df[
             ~df["code_departement"].isin(dom_codes)
         ].copy()
@@ -63,13 +111,26 @@ def run_etl():
         print("Lignes restantes :", len(df))
         
 
+        # Étape 7 : Suppression des doublons : 
+
+        # Suppression des doublons sur le code INSEE car chaque commune doit être unique dans le référentiel
         df = df.drop_duplicates(subset=["code_insee"])
 
+
+        # Étape 8 : Contrôle qualité final
+
+        print("\n--- CONTRÔLE DES VALEURS MANQUANTES ---")
         print(df.isna().sum())
         
 
-        # EXPORT
+        # Étape 9 : Chargement / Export
+
+        # Chemin du fichier nettoyé : 
         chemin_sortie = DIR_CLEANED / "communes_2022_cleaned.csv"
+
+        # Export du dataframe nettoyé au format CSV
+        # sep=";" pour compatibilité Excel
+        # utf-8-sig pour conserver les accents correctement
         df.to_csv(chemin_sortie, sep=";", index=False, encoding="utf-8-sig")
         
         print(f"SUCCÈS : Fichier nettoyé ! ({len(df):,} communes prêtes)")
@@ -80,5 +141,7 @@ def run_etl():
     except Exception as e:
         print(f"Une erreur a interrompu le script : {e}")
 
+
+# Point d'entrée du script : 
 if __name__ == "__main__":
     run_etl()

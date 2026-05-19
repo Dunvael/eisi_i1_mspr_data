@@ -47,6 +47,8 @@ def clean_densite(year):
 
     print("Communes non trouvées :", df["nom_commune"].isna().sum()) #debug pr identifier les codes INSEE qui match pas
 
+    df = df.dropna(subset=["nom_commune"]).copy()
+
     df = df.rename(columns={"nom_commune": "localisation"})
 
     #dataset final

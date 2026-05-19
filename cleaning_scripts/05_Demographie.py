@@ -142,6 +142,8 @@ def clean_demographie(year):
     df = pd.merge(df, df_ref, on="code_insee", how="left")
     df = df.rename(columns={"nom_commune": "localisation"})
 
+    
+
 
     # --------------------------------
     # DEBUG COMMUNES NON TROUVÉES
