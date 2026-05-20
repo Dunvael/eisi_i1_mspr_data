@@ -1,5 +1,6 @@
 import pandas as pd
 from pathlib import Path
+import numpy as np  
 
 BASE_DIR = Path(".")
 
@@ -144,6 +145,23 @@ def clean_criminalite_all(year):
 
      # EXPORT
     fichier_sortie = DIR_OUTPUT / f"09_criminalite_diff_ndiff_{year}_cleaned.csv"
+
+    # Colonnes taux à tronquer
+    colonnes_taux = [
+        "taux_cambriolages_logement",
+        "taux_degradations",
+        "taux_trafic_stupefiants",
+        "taux_usage_stupefiants",
+        "taux_violences_intrafamiliales",
+        "taux_violences_sexuelles",
+        "taux_vols_avec_armes",
+        "taux_vols_vehicule",
+        "taux_vols_violents_sans_arme"
+    ]
+
+    for col in colonnes_taux:
+        df_pivot[col] = pd.to_numeric(df_pivot[col], errors="coerce")
+        df_pivot[col] = np.trunc(df_pivot[col] * 100) / 100
 
     df_pivot.to_csv(
         fichier_sortie,
