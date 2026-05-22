@@ -40,7 +40,8 @@ def run_etl():
 
         #  Étape 2. Transformation : séléction des colonnes
 
-        # Dictionnaire de correspondance entre les noms INSEE et les noms utilisés dans notre projet : 
+        # Dictionnaire de correspondance entre les noms INSEE 
+        # et les noms utilisés dans notre projet : 
         colonnes_a_garder = {
             'TYPECOM': 'type_commune',
             'COM': 'code_insee',
@@ -49,7 +50,8 @@ def run_etl():
             'REG': 'code_region'
         }
 
-        # On garde uniquement les colonnes présentes dans le fichier : cela évite une erreur si une colonne est absente : 
+        # On garde uniquement les colonnes présentes dans le fichier : 
+        # cela évite une erreur si une colonne est absente : 
         cols_presentes = [col for col in colonnes_a_garder.keys() if col in df.columns]
 
         # Sélection et renommage des colonnes : 
@@ -121,6 +123,110 @@ def run_etl():
 
         print("\n--- CONTRÔLE DES VALEURS MANQUANTES ---")
         print(df.isna().sum())
+
+
+        # Contrôle des communes sans département/région
+        print("\n--- COMMUNES SANS CODE_DEPARTEMENT OU CODE_REGION ---")
+
+        df_missing_geo = df[
+            df["code_departement"].isna() |
+            df["code_region"].isna() |
+            (df["code_departement"].astype(str).str.lower() == "nan") |
+            (df["code_region"].astype(str).str.lower() == "nan")
+        ]
+
+        print("Nombre de lignes concernées :", len(df_missing_geo))
+
+        print(df_missing_geo[[
+            "type_commune",
+            "code_insee",
+            "nom_commune",
+            "code_departement",
+            "code_region"
+        ]].head(20))
+
+
+        # Vérification des types de communes concernés
+        # On vérifie que seules les communes déléguées (COMD) et associées (COMA) sont impactées.
+        types_attendus = ["COMD", "COMA"]
+
+        df_types_anormaux = df_missing_geo[
+            ~df_missing_geo["type_commune"].isin(types_attendus)
+        ]
+
+        print("\n--- TYPES ANORMAUX ---")
+        print("Nombre :", len(df_types_anormaux))
+
+        print(df_types_anormaux[[
+            "type_commune",
+            "code_insee",
+            "nom_commune",
+            "code_departement",
+            "code_region"
+        ]].head(50))
+
+
+        # Traitement des communes COMD / COMA
+        # Du fait que certaines communes déléguées et associées ne possèdent pas de département/région
+        # dans le référentiel brut de l’INSEE.
+        #
+        # Le département est reconstruit à partir des 2 premiers caractères du code INSEE.
+        #
+        # La région est ensuite reconstruite automatiquement à partir des autres
+        # communes déjà valides du référentiel.
+
+        mask_missing_geo = (
+            df["type_commune"].isin(["COMD", "COMA"])
+            &
+            (
+                df["code_departement"].isna() |
+                df["code_region"].isna() |
+                (df["code_departement"].astype(str).str.lower() == "nan") |
+                (df["code_region"].astype(str).str.lower() == "nan")
+            )
+        )
+        
+        df.loc[mask_missing_geo, "code_departement"] = (
+               df.loc[mask_missing_geo, "code_insee"]
+               .astype(str)
+               .str[:2]
+        )
+
+
+        # Construction automatique du mapping
+        # département -> région
+        # à partir des communes déjà valides
+
+        mapping_regions = (
+            df[
+                df["code_region"].notna() &
+                (df["code_region"].astype(str).str.lower() != "nan")
+            ][[
+                "code_departement",
+                "code_region"
+            ]]
+            .drop_duplicates(subset=["code_departement"])
+            .set_index("code_departement")["code_region"]
+            .to_dict()
+        )
+
+        # Reconstruction de la région
+
+        df.loc[mask_missing_geo, "code_region"] = (
+            df.loc[mask_missing_geo, "code_departement"]
+            .map(mapping_regions)
+        )
+
+
+        # Contrôle final après reconstruction
+
+        print("\n--- CONTRÔLE APRÈS RECONSTRUCTION ---")
+
+        print(df[[
+            "code_departement",
+            "code_region"
+        ]].isna().sum())
+
         
 
         # Étape 9 : Chargement / Export

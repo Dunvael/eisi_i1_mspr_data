@@ -1,103 +1,103 @@
-import streamlit as st
 import pandas as pd
+import missingno as msno
+import matplotlib.pyplot as plt
 
-#cmd pr run ce script :     py -m streamlit run test_verification/test0.py
+
+import matplotlib
+matplotlib.use("TkAgg")
 
 
-# 1. CONFIGURATION PAGE
-st.set_page_config(
-    page_title="MSPR - Référentiel Communes 2022",
-    page_icon="🏙️",
-    layout="wide",
-    initial_sidebar_state="expanded"
+# Charger le fichier cleaned
+df = pd.read_csv(
+    "data_cleaned/communes_2022_cleaned.csv",
+    sep=";",
+    dtype=str
 )
 
-st.title("Référentiel des communes - 2022")
-st.markdown("Dashboard de vérification du fichier `communes_2022_cleaned.csv`.")
+# ===== INFOS GÉNÉRALES =====
+print("\n--- INFO DATASET ---")
+print(df.shape)
+print(df.info())
 
-# 2. CHARGEMENT DES DONNÉES
+print("\n--- APERÇU DES DONNÉES ---")
+print(df.head())
 
-@st.cache_data
-def load_data():
-    try:
-        df = pd.read_csv(
-            "data_cleaned/communes_2022_cleaned.csv",
-            sep=";",
-            dtype=str
-        )
+print("\n--- COLONNES ---")
+print(df.columns)
 
-        for col in ["code_insee", "nom_commune", "code_departement", "code_region"]:
-            if col in df.columns:
-                df[col] = df[col].astype(str).str.strip()
+# ===== NETTOYAGE LÉGER POUR VÉRIFICATION =====
+for col in ["code_insee", "nom_commune", "code_departement", "code_region"]:
+    if col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
 
-        return df
+# ===== VALEURS MANQUANTES =====
+print("\n--- NA PAR COLONNE ---")
+print(df.isna().sum())
 
-    except FileNotFoundError:
-        return None
+print("\n--- POURCENTAGE DE NA PAR COLONNE ---")
+print((df.isna().mean() * 100).round(2))
 
-df = load_data()
+# ===== MISSINGNO =====
+msno.matrix(df)
+plt.title("Distribution des valeurs manquantes - Communes 2022")
+plt.show()
 
-if df is None:
-    st.error("❌ Fichier introuvable.")
-    st.warning("Lance d'abord : `py scripts_v2/00_create_referentiel.py`")
-    st.stop()
+msno.bar(df)
+plt.title("Nombre de valeurs manquantes - Communes 2022")
+plt.show()
 
-# 3. SIDEBAR - FILTRES
-with st.sidebar:
-    st.header("Filtres")
+# ===== CONTRÔLES QUALITÉ =====
+print("\n--- DOUBLONS ---")
+print("Nombre de lignes dupliquées :", df.duplicated().sum())
 
-    recherche = st.text_input("Rechercher une commune :")
+if "code_insee" in df.columns:
+    print("Nombre de codes INSEE uniques :", df["code_insee"].nunique())
+    print("Nombre de codes INSEE dupliqués :", df["code_insee"].duplicated().sum())
 
-    departements = sorted(df["code_departement"].dropna().unique().tolist())
-    dep_choisi = st.selectbox(
-        "Département :",
-        ["Tous"] + departements
-    )
+if "nom_commune" in df.columns:
+    print("Nombre de communes uniques :", df["nom_commune"].nunique())
 
-    regions = sorted(df["code_region"].dropna().unique().tolist())
-    reg_choisie = st.selectbox(
-        "Région :",
-        ["Toutes"] + regions
-    )
+if "code_departement" in df.columns:
+    print("Nombre de départements :", df["code_departement"].nunique())
+    print("\n--- RÉPARTITION PAR DÉPARTEMENT ---")
+    print(df["code_departement"].value_counts().sort_index())
 
-    st.divider()
-    st.caption("Projet MSPR - Référentiel INSEE 2022")
+if "code_region" in df.columns:
+    print("Nombre de régions :", df["code_region"].nunique())
+    print("\n--- RÉPARTITION PAR RÉGION ---")
+    print(df["code_region"].value_counts().sort_index())
 
-# 4. APPLICATION DES FILTRES
-df_actif = df.copy()
+# ===== DISTRIBUTION PAR DÉPARTEMENT =====
+if "code_departement" in df.columns:
+    plt.figure(figsize=(12, 5))
+    df["code_departement"].value_counts().sort_index().plot(kind="bar")
+    plt.title("Nombre de communes par département")
+    plt.xlabel("Département")
+    plt.ylabel("Nombre de communes")
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    plt.show()
 
-if recherche:
-    df_actif = df_actif[
-        df_actif["nom_commune"].str.contains(recherche, case=False, na=False)
-    ]
+# ===== DISTRIBUTION PAR RÉGION =====
+if "code_region" in df.columns:
+    plt.figure(figsize=(8, 5))
+    df["code_region"].value_counts().sort_index().plot(kind="bar")
+    plt.title("Nombre de communes par région")
+    plt.xlabel("Région")
+    plt.ylabel("Nombre de communes")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
 
-if dep_choisi != "Tous":
-    df_actif = df_actif[df_actif["code_departement"] == dep_choisi]
+# ===== CHECK FORMAT CODE INSEE =====
+if "code_insee" in df.columns:
+    print("\n--- FORMAT CODE INSEE ---")
+    print(df["code_insee"].str.len().value_counts().sort_index())
 
-if reg_choisie != "Toutes":
-    df_actif = df_actif[df_actif["code_region"] == reg_choisie]
+    codes_invalides = df[~df["code_insee"].str.match(r"^\d{5}$", na=False)]
+    print("Nombre de codes INSEE invalides :", len(codes_invalides))
 
-# 5. INDICATEURS
-col1, col2, col3 = st.columns(3)
+    if not codes_invalides.empty:
+        print(codes_invalides.head())
 
-col1.metric("Communes affichées", f"{len(df_actif):,}".replace(",", " "))
-col2.metric("Départements", df["code_departement"].nunique())
-col3.metric("Régions", df["code_region"].nunique())
-
-st.divider()
-
-# 6. TABLEAU
-st.subheader("Données du référentiel")
-
-if df_actif.empty:
-    st.warning("⚠️ Aucune commune ne correspond aux filtres.")
-else:
-    st.dataframe(df_actif, use_container_width=True, hide_index=True)
-
-    csv = df_actif.to_csv(index=False, sep=";").encode("utf-8-sig")
-    st.download_button(
-        label="Télécharger le référentiel filtré",
-        data=csv,
-        file_name="export_communes_2022_cleaned.csv",
-        mime="text/csv"
-    )
+print("\n Test post-cleaning terminé pour communes_2022_cleaned.csv")
