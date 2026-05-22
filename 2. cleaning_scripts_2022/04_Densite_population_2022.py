@@ -4,7 +4,7 @@ import sys
 
 BASE_DIR = Path(".")
 
-FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "2. Densite population" / "communes-france-2022.csv"
+FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "4_densite_population_2022" / "POPULATION_ET_DENSITE_PAR_COM_2022.csv"
 FILE_COMMUNES = BASE_DIR / "data_cleaned" / "communes_2022_cleaned.csv"
 
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2022"
@@ -46,6 +46,8 @@ def clean_densite(year):
     df = pd.merge(df, df_ref, on="code_insee", how="left") #ajout du nom de commune
 
     print("Communes non trouvées :", df["nom_commune"].isna().sum()) #debug pr identifier les codes INSEE qui match pas
+
+    df = df.dropna(subset=["nom_commune"]).copy()
 
     df = df.rename(columns={"nom_commune": "localisation"})
 

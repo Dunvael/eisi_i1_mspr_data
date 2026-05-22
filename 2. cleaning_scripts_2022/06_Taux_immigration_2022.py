@@ -5,7 +5,7 @@ import sys
 
 BASE_DIR = Path(".")
 
-FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "6. Sexe_nationalite_immigration" / "TD_NAT2_2022.xlsx"
+FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "6_taux_immigration_2022" / "ACTIVITE_IMMIGRATION_PAR_COM_2022.xlsx"
 FILE_COMMUNES = BASE_DIR / "data_cleaned" / "communes_2022_cleaned.csv"
 
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2022"
@@ -120,12 +120,17 @@ def clean_taux_immigration(year):
         on="code_insee",
         how="left"
     )
+    
+    
+    print("Communes non trouvées après merge :", df["nom_commune"].isna().sum())
+    print(df[df["nom_commune"].isna()][["code_insee"]].head(50))
 
-    df = df.dropna(subset=["nom_commune"]) #suppression des codes qui ne sont pas des communes du référentiel
+    df = df.dropna(subset=["nom_commune"]).copy()
     df = df.rename(columns={"nom_commune": "localisation"})
 
     # Fichier final
     df_final = df[["code_insee","localisation", "taux_immigration"]].copy()
+
 
     df_final = df_final.dropna(subset=["localisation"])
     df_final = df_final[df_final["localisation"].astype(str).str.strip() != ""]
@@ -140,7 +145,6 @@ def clean_taux_immigration(year):
     print(f"Fichier créé : {fichier_sortie}")
 
     print("Lignes après lecture :", len(df))
-    print("Communes non trouvées après merge :", df["localisation"].isna().sum())
     print(df_final.isna().sum())
 
 

@@ -5,9 +5,9 @@ import sys
 
 BASE_DIR = Path(".")
 
-FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "10. 2021 Revenu pauvrete niveau vie" / "FILO2021_DISP_COM.csv"
+FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "1_revenu_median_2022" / "REVENU_2021_DISPONIBLE_PAR_COM.csv"
 FILE_COMMUNES = BASE_DIR / "data_cleaned" / "communes_2022_cleaned.csv"
-FILE_REVENU_DEP = BASE_DIR / "data_raw" / "2022_raw" / "10. 2021 Revenu pauvrete niveau vie" / "FILO2021_DEC_DEP.csv"
+FILE_REVENU_DEP = BASE_DIR / "data_raw" / "2022_raw" / "1_revenu_median_2022" / "REVENU_2021_DISPONIBLE_PAR_DEP.csv"
 FILE_PASSAGE = BASE_DIR / "data_raw" / "2022_raw" / "referentiels" / "table_passage_annuelle_2025.xlsx"
 
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2022"
@@ -244,7 +244,7 @@ def clean_revenus(year):
     print("\n--- DISTRIBUTION CLASSES REVENUS ---")
     print(df_final["classe_revenu"].value_counts())
 
-    fichier_sortie = DIR_OUTPUT / f"01_revenus_median_{year}_cleaned.csv"
+    fichier_sortie = DIR_OUTPUT / f"01_revenus_{year}_cleaned.csv"
 
     df_final.to_csv(
         fichier_sortie,

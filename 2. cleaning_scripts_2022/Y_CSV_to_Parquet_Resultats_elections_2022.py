@@ -3,7 +3,7 @@ import pandas as pd
 
 #CSV de 2Go à transformer en parquet
 
-FILE_DATA = Path("data_raw/2022_raw/12. Resultat1er_tour/candidats_results.csv")
+FILE_DATA = Path("data_raw/2022_raw/Resultat_1er_tour_2022/RESULTAT_PAR_CANDIDATS_2022.csv")
 OUTPUT = Path("data_cleaned/2022/presidentielle_2022_t1.parquet")
 OUTPUT.parent.mkdir(parents=True, exist_ok=True)
 

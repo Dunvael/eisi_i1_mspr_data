@@ -14,7 +14,7 @@ FILE_REF = BASE_DIR / "data_cleaned" / "2024" / "00_referentiel_communes_22_24_c
 
 FILE_POP_2024 = BASE_DIR / "data_cleaned" / "2024" / "01_Densite_population" / "01.3_population_densite_2024_clean.csv"
 
-FILE_DATA_2022 = BASE_DIR / "data_raw" / "2022_raw" / "13. Demographie" / "pop-sexe-age-quinquennal6822.xlsx"
+FILE_DATA_2022 = BASE_DIR / "data_raw" / "2022_raw" / "5_demographie_2022" / "DEMOGRAPHIE_PAR_SEXE_PAR_DEP_ET_COM_1968_TO_2022.xlsx"
 
 FILE_OUTPUT = BASE_DIR / "data_cleaned" / "2024" / "03_Demographie" / "03_tranches_age_2024_clean.csv"
 

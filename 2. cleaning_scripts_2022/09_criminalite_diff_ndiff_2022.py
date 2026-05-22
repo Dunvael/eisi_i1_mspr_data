@@ -1,15 +1,18 @@
 import pandas as pd
 from pathlib import Path
+import numpy as np  
 
 BASE_DIR = Path(".")
 
 FILE_DATA = (
-    BASE_DIR / "data_raw" / "2022_raw" / "3. Criminalite" / "criminalite_par_commune.parquet"
+    BASE_DIR / "data_raw" / "2022_raw" / "9_criminalite_2022" / "CRIMINALITE_PAR_COM_2022.parquet"
 )
 
 FILE_PASSAGE = (
     BASE_DIR / "data_raw" / "2022_raw" / "referentiels" / "table_passage_annuelle_2025.xlsx"
 )
+
+FILE_COMMUNES = BASE_DIR / "data_cleaned" / "communes_2022_cleaned.csv"
 
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2022"
 DIR_OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -118,8 +121,47 @@ def clean_criminalite_all(year):
         "Trafic de stupéfiants": "taux_trafic_stupefiants"
     })
 
+
+    # Merge avec référentiel communes
+    df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str)
+    df_ref = df_ref[["code_insee", "nom_commune"]]
+    df_ref["code_insee"] = df_ref["code_insee"].astype(str).str.zfill(5)
+    df_ref = df_ref.drop_duplicates(subset=["code_insee"])
+
+    df_pivot = pd.merge(
+        df_pivot,
+        df_ref,
+        on="code_insee",
+        how="left"
+    )
+
+    print("Communes non trouvées :", df_pivot["nom_commune"].isna().sum())
+    print(df_pivot[df_pivot["nom_commune"].isna()][["code_insee"]].head(50))
+
+    df_pivot = df_pivot.dropna(subset=["nom_commune"]).copy()
+    df_pivot = df_pivot.rename(columns={"nom_commune": "localisation"})
+
+
+
      # EXPORT
     fichier_sortie = DIR_OUTPUT / f"09_criminalite_diff_ndiff_{year}_cleaned.csv"
+
+    # Colonnes taux à tronquer
+    colonnes_taux = [
+        "taux_cambriolages_logement",
+        "taux_degradations",
+        "taux_trafic_stupefiants",
+        "taux_usage_stupefiants",
+        "taux_violences_intrafamiliales",
+        "taux_violences_sexuelles",
+        "taux_vols_avec_armes",
+        "taux_vols_vehicule",
+        "taux_vols_violents_sans_arme"
+    ]
+
+    for col in colonnes_taux:
+        df_pivot[col] = pd.to_numeric(df_pivot[col], errors="coerce")
+        df_pivot[col] = np.trunc(df_pivot[col] * 100) / 100
 
     df_pivot.to_csv(
         fichier_sortie,

@@ -4,7 +4,7 @@ import sys
 
 BASE_DIR = Path(".")
 
-FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "14. Associations" / "creation_association2000_a_2024.xlsx"
+FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "7_association_2022" / "CREATION_ASSOCIATION_PAR_COM_2000_a_2024.xlsx"
 FILE_COMMUNES = BASE_DIR / "data_cleaned" / "communes_2022_cleaned.csv"
 
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2022"
@@ -67,13 +67,16 @@ def clean_associations(year):
         how="left"
     )
 
+    print("Communes non trouvées :", df["nom_commune"].isna().sum())
+    print(df[df["nom_commune"].isna()][["code_insee"]].head(50))
+
+    df = df.dropna(subset=["nom_commune"]).copy()
+
     df = df.rename(columns={"nom_commune": "localisation"})
 
     # 6. CLEAN FINAL
     df_final = df[["code_insee", "localisation", "nb_associations"]].copy()
 
-    df_final = df_final.dropna(subset=["localisation"])
-    df_final = df_final[df_final["localisation"].astype(str).str.strip() != ""]
 
     df_final["annee"] = year
 

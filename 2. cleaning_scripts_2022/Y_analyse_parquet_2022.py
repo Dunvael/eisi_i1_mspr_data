@@ -1,7 +1,7 @@
 import pandas as pd
 
 df = pd.read_parquet(
-    "data_raw/2022_raw/12. Resultat1er_tour/presidentielle_2022_t1.parquet"
+    "data_raw/2022_raw/Resultat_1er_tour_2022/PRESIDENTIEL_T1_PAR_COM_2022.parquet"
 )
 
 resultat = df[
