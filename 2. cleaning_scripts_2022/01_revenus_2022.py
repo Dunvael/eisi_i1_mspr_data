@@ -244,7 +244,7 @@ def clean_revenus(year):
     print("\n--- DISTRIBUTION CLASSES REVENUS ---")
     print(df_final["classe_revenu"].value_counts())
 
-    fichier_sortie = DIR_OUTPUT / f"01_revenus_median_{year}_cleaned.csv"
+    fichier_sortie = DIR_OUTPUT / f"01_revenus_{year}_cleaned.csv"
 
     df_final.to_csv(
         fichier_sortie,
