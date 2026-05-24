@@ -106,6 +106,26 @@ def clean_criminalite_all(year=2024):
     cols = df_pivot.columns.tolist()
     cols.insert(1, cols.pop(cols.index("nom_commune_2024")))
     df_pivot = df_pivot[cols]
+    # =========================================================
+    # 7.5 IMPUTATION DES VALEURS MANQUANTES (MÉDIANE DÉPARTEMENTALE)
+    # =========================================================
+    print("Imputation des valeurs manquantes par la médiane départementale...")
+    
+    df_pivot['code_dept'] = df_pivot['code_insee_2024'].astype(str).str[:2]
+    
+    # On identifie les colonnes de taux (tout sauf code, nom, et annee)
+    cols_taux = [col for col in df_pivot.columns if col.startswith('taux_')]
+    
+    for col in cols_taux:
+        # Médiane du département
+        df_pivot['mediane_dept'] = df_pivot.groupby('code_dept')[col].transform('median')
+        # Médiane nationale (en secours)
+        mediane_nationale = df_pivot[col].median()
+        
+        # Remplacement en cascade (on arrondit à 2 décimales pour des taux)
+        df_pivot[col] = df_pivot[col].fillna(df_pivot['mediane_dept']).fillna(mediane_nationale).round(2)
+        
+    df_pivot = df_pivot.drop(columns=['code_dept', 'mediane_dept'])
 
     # =========================================================
     # 8. EXPORT ET DASHBOARD

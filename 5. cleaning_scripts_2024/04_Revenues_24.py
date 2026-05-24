@@ -77,9 +77,25 @@ def estimer_revenus():
     
     df_agg['revenu_estime_2024'] = (df_agg['OBS_VALUE'] * TAUX_EVOLUTION_2024).round(2)
 
+    # --- NOUVELLE LOGIQUE : MÉDIANE DÉPARTEMENTALE ---
+    print("Imputation des valeurs manquantes par la médiane départementale...")
+    
+    # 1. On extrait le numéro de département (les 2 premiers caractères du code INSEE)
+    df_agg['code_dept'] = df_agg['code_insee_2024'].astype(str).str[:2]
+    
+    # 2. On calcule la médiane spécifique pour chaque département
+    df_agg['mediane_dept'] = df_agg.groupby('code_dept')['revenu_estime_2024'].transform('median')
+    
+    # 3. On calcule la médiane nationale (sécurité au cas où un département entier serait vide)
     mediane_nationale_2024 = df_agg['revenu_estime_2024'].median()
-    df_agg['revenu_estime_2024'] = df_agg['revenu_estime_2024'].fillna(mediane_nationale_2024)
+    
+    # 4. On remplace les NaN : d'abord par la médiane du département, puis par la nationale si échec
+    df_agg['revenu_estime_2024'] = df_agg['revenu_estime_2024'].fillna(df_agg['mediane_dept']).fillna(mediane_nationale_2024)
+    
+    # 5. On nettoie les colonnes temporaires pour garder un fichier propre
+    df_agg = df_agg.drop(columns=['code_dept', 'mediane_dept'])
 
+    # ---> AJOUTE CETTE LIGNE ICI <---
     lignes_fin = len(df_agg)
 
     # =========================================================

@@ -13,9 +13,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
-from sklearn.utils.class_weight import compute_sample_weight # <-- AJOUT : L'outil pour le barème de pénalité
 
 from sklearn.metrics import accuracy_score, f1_score, classification_report
+from sklearn.utils.class_weight import compute_sample_weight # AJOUT : Pour équilibrer XGBoost
 
 from xgboost import XGBClassifier
 
@@ -29,6 +29,7 @@ MODEL_DIR.mkdir(exist_ok=True)
 
 BEST_MODEL_PATH = MODEL_DIR / "best_model.joblib"
 ENCODER_PATH = MODEL_DIR / "label_encoder.joblib"
+FEATURES_PATH = MODEL_DIR / "features.joblib" # AJOUT : Chemin pour sauver les colonnes
 
 ARTIFACTS_DIR = Path("artifacts")
 CLASSIFICATION_DIR = ARTIFACTS_DIR / "classification"
@@ -82,6 +83,10 @@ X = df.drop(columns=[
 
 X = pd.get_dummies(X, drop_first=False)
 
+# AJOUT CRITIQUE : Sauvegarde de la liste exacte des colonnes pour 2024
+joblib.dump(list(X.columns), FEATURES_PATH)
+print(f"\nVariables sauvegardées pour la prédiction : {len(X.columns)}")
+
 
 # 4. Vérification des valeurs manquantes
 
@@ -114,7 +119,7 @@ models = {
         ("model", RandomForestClassifier(
             n_estimators=100,
             random_state=RANDOM_STATE,
-            class_weight="balanced" # Déjà présent : Parfait
+            class_weight="balanced"
         ))
     ]),
 
@@ -135,7 +140,7 @@ models = {
         ("model", LogisticRegression(
             max_iter=2000,
             random_state=RANDOM_STATE,
-            class_weight="balanced" # Déjà présent : Parfait
+            class_weight="balanced"
         ))
     ]),
 
@@ -168,7 +173,7 @@ for model_name, pipeline in models.items():
 
     model_file_name = model_name.replace(" ", "_")
 
-    # AJOUT : Application de la pénalité spécifique pour XGBoost sans fausser les données
+    # AJOUT CRITIQUE : Équilibrage des classes pour XGBoost
     if model_name == "XGBoost":
         weights = compute_sample_weight(class_weight='balanced', y=y_train)
         pipeline.fit(X_train, y_train, model__sample_weight=weights)
@@ -188,12 +193,11 @@ for model_name, pipeline in models.items():
     )
 
     accuracy = accuracy_score(y_test, predictions)
-    
-    # CORRECTION CRITIQUE : Utilisation de "macro" au lieu de "weighted" pour arrêter de favoriser l'extrême droite
+    # AJOUT CRITIQUE : Utilisation de macro au lieu de weighted pour ne pas tricher
     f1_macro = f1_score(y_test, predictions, average="macro")
 
     print("\nAccuracy :", round(accuracy * 100, 2), "%")
-    print("F1-score MACRO :", round(f1_macro * 100, 2), "%")
+    print("F1-score macro :", round(f1_macro * 100, 2), "%")
 
     print("\nRapport de classification :")
     print(classification_report(
@@ -296,7 +300,7 @@ with open(REPORTS_DIR / "best_model_classification_summary.json", "w", encoding=
     json.dump(best_summary, f, indent=4, ensure_ascii=False)
 
 print("\nMeilleur modèle sélectionné :", best_model_name)
-print("F1-score MACRO :", round(best_f1_score * 100, 2), "%")
+print("F1-score macro :", round(best_f1_score * 100, 2), "%")
 print("Modèle sauvegardé dans :", BEST_MODEL_PATH)
 print("Encoder sauvegardé dans :", ENCODER_PATH)
 print("Exports dashboard créés dans :", CLASSIFICATION_DIR)

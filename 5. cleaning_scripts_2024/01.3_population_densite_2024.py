@@ -1,6 +1,7 @@
 import pandas as pd
 from pathlib import Path
 import sys
+import requests  # <-- Ajout indispensable pour se connecter à l'API
 
 print("Nettoyage fichier POPULATION & DENSITÉ")
 
@@ -69,8 +70,31 @@ def nettoyer_population():
     df_final = df_mapped.groupby(["code_insee_2024", "nom_commune_2024"])[["population", "superficie_km2"]].sum().reset_index()
 
     # =========================================================
-    # 4. RECALCUL DE LA DENSITÉ ET TAUX DE PERFECTION
+    # 4. RECALCUL DE LA DENSITÉ ET CORRECTION API
     # =========================================================
+    print("Vérification des superficies aberrantes (<= 0)...")
+    
+    def fetch_superficie_api(code_insee):
+        """Interroge l'API GeoGouv pour obtenir la surface en km2"""
+        try:
+            url = f"https://geo.api.gouv.fr/communes/{code_insee}?fields=surface"
+            reponse = requests.get(url, timeout=5)
+            if reponse.status_code == 200:
+                data = reponse.json()
+                if 'surface' in data:
+                    return round(data['surface'] / 100, 2) # Conversion Hectares -> km²
+        except Exception as e:
+            pass
+        return 1.0 # Bouclier anti-crash si l'API ne répond pas
+        
+    masque_zero = df_final["superficie_km2"] <= 0
+    nb_corrections = masque_zero.sum()
+    
+    if nb_corrections > 0:
+        print(f" Appel de l'API Gouv pour corriger {nb_corrections} communes...")
+        df_final.loc[masque_zero, "superficie_km2"] = df_final.loc[masque_zero, "code_insee_2024"].apply(fetch_superficie_api)
+        print(" Correction API terminée !")
+
     print("Recalcul des densités...")
     df_final["densite"] = df_final.apply(
         lambda row: round(row["population"] / row["superficie_km2"], 2) if row["superficie_km2"] > 0 else 0, 
@@ -90,11 +114,10 @@ def nettoyer_population():
     taux_parfait = ((lignes_fin - lignes_imparfaites) / lignes_fin) * 100 if lignes_fin > 0 else 0
 
     # ---------------------------------------------------------
-    # FORMATAGE FINAL DES COLONNES (Modifié ici)
+    # FORMATAGE FINAL DES COLONNES
     # ---------------------------------------------------------
     df_final["annee"] = 2024
     
-    # On sélectionne directement les colonnes avec leurs vrais noms
     df_final = df_final[["code_insee_2024", "nom_commune_2024", "population", "superficie_km2", "densite", "annee"]]
 
     # =========================================================
@@ -110,15 +133,11 @@ def nettoyer_population():
     print(f" Communes finales consolidées : {lignes_fin:,}")
     print("-" * 50)
     print(f" Fusions gérées               : {nb_communes_fusionnees}")
-    print(f" Valeurs manquantes (NaN)     : {nb_nan_total}")
-    print(f" Valeurs égales à 0 au départ : {nb_zero_total}")
+    print(f" Superficies corrigées (API)  : {nb_corrections}")
     print("-" * 50)
     print(f" Total Population France      : {df_final['population'].sum():,}")
-    print(f" TAUX DE PERFECTION (Précision): {taux_parfait:.2f} %")
+    print(f" TAUX DE PERFECTION           : {taux_parfait:.2f} %")
     print("="*50 + "\n")
-    
-    print("Aperçu (Top 3) :")
-    print(df_final.head(3))
 
 if __name__ == "__main__":
     nettoyer_population()

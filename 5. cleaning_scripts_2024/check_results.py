@@ -1,6 +1,8 @@
 import pandas as pd
 
-# Couleurs pour le terminal
+# =========================================================
+# STYLE TERMINAL
+# =========================================================
 class C:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -9,32 +11,62 @@ class C:
     END = '\033[0m'
     BOLD = '\033[1m'
 
-print(f"\n{C.HEADER}{C.BOLD}🧐 LECTURE DES PRÉDICTIONS GÉNÉRÉES POUR 2024{C.END}\n")
+print(f"\n{C.HEADER}{C.BOLD}🧐 LECTURE DES PRÉDICTIONS 2024{C.END}\n")
 
-# Charger le fichier de résultats
+# =========================================================
+# LOAD DATA
+# =========================================================
 file_path = "data_cleaned/2024/PREDICTIONS_FINALES_2024.csv"
 df = pd.read_csv(file_path, sep=";")
 
-# On cible la nouvelle colonne contenant le texte (ou les chiffres si le texte n'existe pas)
-colonne_cible = "Parti_Politique_Texte" if "Parti_Politique_Texte" in df.columns else "prediction_politique_2024"
+# =========================================================
+# FIX ROBUSTE COLONNE PRÉDICTION
+# =========================================================
+possible_cols = [
+    "prediction_politique_2024",
+    "prediction_politique",
+    "prediction_encoded",
+    "Parti_Politique_Texte"
+]
 
-# 1. Distribution globale des prédictions
+colonne_cible = None
+for c in possible_cols:
+    if c in df.columns:
+        colonne_cible = c
+        break
+
+if colonne_cible is None:
+    print(f"{C.WARNING}❌ Aucune colonne de prédiction trouvée !{C.END}")
+    print("Colonnes disponibles :")
+    print(df.columns.tolist())
+    exit()
+
+# =========================================================
+# 1. DISTRIBUTION
+# =========================================================
 print(f"{C.OKBLUE}{C.BOLD}■ Répartition politique globale des communes :{C.END}")
-repartition = df[colonne_cible].value_counts()
-pourcentage = df[colonne_cible].value_counts(normalize=True) * 100
 
-for trend, count in repartition.items():
+repartition = df[colonne_cible].value_counts(dropna=False)
+pourcentage = df[colonne_cible].value_counts(normalize=True, dropna=False) * 100
+
+for trend in repartition.index:
+    count = repartition[trend]
     pct = pourcentage[trend]
-    print(f"  - {str(trend):<18} : {count:>5,} communes ({pct:.2f} %)")
+    print(f"  - {str(trend):<20} : {count:>7,} communes ({pct:.2f} %)")
 
-# 2. Aperçu de quelques communes
+# =========================================================
+# 2. SAMPLE
+# =========================================================
 print(f"\n{C.OKBLUE}{C.BOLD}■ Échantillon des 15 premières communes :{C.END}")
-print(f"{'-'*55}")
-print(f"{'Code INSEE':<12} | {'Nom de la Commune':<20} | {'Prédiction 2024':<15}")
-print(f"{'-'*55}")
+print(f"{'-'*75}")
+print(f"{'Code INSEE':<12} | {'Nom de la Commune':<30} | {'Prédiction 2024'}")
+print(f"{'-'*75}")
 
 for _, row in df.head(15).iterrows():
+    code = str(row.get("code_insee_2024", "N/A"))
+    nom = str(row.get("nom_commune_2024", "N/A"))
     valeur = str(row[colonne_cible])
-    print(f"{str(row['code_insee_2024']).zfill(5):<12} | {str(row['nom_commune_2024']):<20} | {C.OKGREEN}{valeur}{C.END}")
 
-print(f"{'-'*55}\n")
+    print(f"{code:<12} | {nom:<30} | {C.OKGREEN}{valeur}{C.END}")
+
+print(f"{'-'*75}\n")
