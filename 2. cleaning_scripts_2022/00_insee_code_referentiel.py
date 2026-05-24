@@ -171,9 +171,6 @@ def run_etl():
         # dans le référentiel brut de l’INSEE.
         #
         # Le département est reconstruit à partir des 2 premiers caractères du code INSEE.
-        #
-        # La région est ensuite reconstruite automatiquement à partir des autres
-        # communes déjà valides du référentiel.
 
         mask_missing_geo = (
             df["type_commune"].isin(["COMD", "COMA"])

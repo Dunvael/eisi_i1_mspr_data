@@ -3,48 +3,81 @@ import numpy as np
 from pathlib import Path
 import sys
 
+
+# 1. Configuration des chemins
+
 BASE_DIR = Path(".")
 
+# Chemin vers le fichier brut de démographie
 FILE_DATA = BASE_DIR / "data_raw" / "2022_raw" / "5_demographie_2022" / "DEMOGRAPHIE_PAR_SEXE_PAR_DEP_ET_COM_1968_TO_2022.xlsx"
+
+# Chemin vers le référentiel communal nettoyé
 FILE_COMMUNES = BASE_DIR / "data_cleaned" / "communes_2022_cleaned.csv"
 
+# Dossier de sortie des fichiers nettoyés
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2022"
+
+# Création du dossier de sortie s'il n'existe pas
 DIR_OUTPUT.mkdir(parents=True, exist_ok=True)
 
 
-def calcul_age_median(row, age_cols, midpoints): #row = une ligne = une commune
-    total = row[age_cols].sum() #somme de toutes les tranches d’âge
+# 2. Fonction de calcul de l'âge médian approximatif
 
-    if total == 0: #si aucune population → pas d’âge médian
+def calcul_age_median(row, age_cols, midpoints): #row = une ligne = une commune
+
+    # Somme de toutes les tranches d'âge
+    total = row[age_cols].sum()
+
+    # Si la commune n'a pas de population exploitable
+    if total == 0:
         return np.nan
 
-    seuil = total / 2 #on cherche le moment où on atteint 50% de la population
-    cumul = 0 #on va additionner les tranches petit à petit
+    # Seuil correspondant à 50 % de la population
+    seuil = total / 2
 
-    for col, midpoint in zip(age_cols, midpoints): #zip permet de parcourir 2 listes en mm temps
-        cumul += row[col] # on ajoute la population tranche par tranche
-        if cumul >= seuil: # dès qu'on dépasse 50% → c'est la tranche médiane
+    # Cumul progressif des tranches d'âge
+    cumul = 0
+
+    # Parcours des tranches d'âge et de leurs milieux
+    for col, midpoint in zip(age_cols, midpoints):
+        cumul += row[col]
+
+        # Dès que le cumul dépasse 50 %, on retourne le milieu de la tranche
+        if cumul >= seuil:
             return midpoint
 
     return np.nan
 
 
+# 3. Nettoyage du dataset démographie
+
 def clean_demographie(year):
+
     print(f"Nettoyage démographie {year}")
 
+    # Vérification de l'existence du fichier brut
     if not FILE_DATA.exists():
         print(f" Fichier introuvable : {FILE_DATA}")
         sys.exit(1)
 
+    # Vérification de l'existence du référentiel communal
     if not FILE_COMMUNES.exists():
         print(f"  Référentiel introuvable : {FILE_COMMUNES}")
         sys.exit(1)
 
-    # Référentiel communes
+
+    # Étape 1 : Chargement du référentiel communes
+
     df_ref = pd.read_csv(FILE_COMMUNES, sep=";", dtype=str)
+
+    # Normalisation du code INSEE sur 5 caractères
     df_ref["code_insee"] = df_ref["code_insee"].astype(str).str.zfill(5)
 
-    # Lecture de la feuille avec la ligne technique : DR, CR ..
+
+    # Étape 2 : Lecture du fichier démographique brut
+
+    # Lecture de la feuille COM_2022
+    # skiprows=13 permet de passer les lignes d'en-tête techniques
     df = pd.read_excel(
         FILE_DATA,
         sheet_name="COM_2022",
@@ -52,9 +85,13 @@ def clean_demographie(year):
         dtype=str
     )
 
+    # Nettoyage des noms de colonnes
     df.columns = df.columns.astype(str).str.strip()
 
-    # Code INSEE = département + code commune
+
+    # Étape 3 : Reconstruction du code INSEE
+
+    # Le code INSEE est reconstruit à partir du département DR et du code commune CR
     df["DR"] = df["DR"].astype(str).str.zfill(2)
     df["CR"] = df["CR"].astype(str).str.zfill(3)
     df["code_insee"] = df["DR"] + df["CR"]
@@ -62,7 +99,12 @@ def clean_demographie(year):
     #df = df[df["STABLE"].astype(str).str.strip() == "1"] #On garde uniquement les communes STABLES (communes non fusionnées non supprimée)
 
 
-    # Colonnes source → colonnes propres
+    # Étape 4 : Définition des tranches d'âge
+
+    # Dictionnaire associant chaque tranche d'âge :
+    # - colonne hommes
+    # - colonne femmes
+    # - valeur médiane approximative de la tranche
     tranches = {
         "0_4": ("ageq_rec01s1rpop2022", "ageq_rec01s2rpop2022", 2.5),
         "5_9": ("ageq_rec02s1rpop2022", "ageq_rec02s2rpop2022", 7.5),
@@ -89,66 +131,89 @@ def clean_demographie(year):
     age_cols = []
     midpoints = []
 
+
+    # Étape 5 : Création des tranches d'âge agrégées
+
     for tranche, (col_hommes, col_femmes, milieu) in tranches.items():
+
+        # Vérification de la présence des colonnes attendues
         if col_hommes not in df.columns or col_femmes not in df.columns:
             print(f"  Colonnes manquantes pour {tranche}")
             print(f"Attendu : {col_hommes} et {col_femmes}")
             print("Colonnes disponibles :", df.columns.tolist())
             sys.exit(1)
 
+        # Conversion des colonnes hommes / femmes en numérique
         hommes = pd.to_numeric(df[col_hommes], errors="coerce")
         femmes = pd.to_numeric(df[col_femmes], errors="coerce")
 
+        # Addition hommes + femmes pour obtenir la population totale de la tranche
         df[tranche] = hommes + femmes
 
+        # Stockage des colonnes créées pour les calculs suivants
         age_cols.append(tranche)
         midpoints.append(milieu)
 
-    # Groupes démographiques
+
+    # Étape 6 : Création des indicateurs démographiques
+
+    # Population totale calculée à partir de toutes les tranches d'âge
     df["population_totale"] = df[age_cols].sum(axis=1)
 
+    # Population des moins de 25 ans
     df["jeunes_moins_25"] = df[
         ["0_4", "5_9", "10_14", "15_19", "20_24"]
     ].sum(axis=1)
 
+    # Population des 65 ans et plus
     df["seniors_65_plus"] = df[
         ["65_69", "70_74", "75_79", "80_84", "85_89", "90_94", "95_plus"]
     ].sum(axis=1)
 
+    # Pourcentage de jeunes dans la population totale
     df["pct_jeunes"] = np.where(
         df["population_totale"] > 0,
         df["jeunes_moins_25"] / df["population_totale"] * 100,
         np.nan
     )
 
+    # Pourcentage de seniors dans la population totale
     df["pct_seniors"] = np.where(
         df["population_totale"] > 0,
         df["seniors_65_plus"] / df["population_totale"] * 100,
         np.nan
     )
 
-    # Age médian approximatif : tranche où le cumul dépasse 50%
+
+    # Étape 7 : Calcul de l'âge médian approximatif
+
+    # L'âge médian est estimé avec la tranche où le cumul dépasse 50 %
     df["age_median"] = df.apply(
         lambda row: calcul_age_median(row, age_cols, midpoints),
         axis=1
     )
 
 
+    # Étape 8 : Préparation du référentiel pour la jointure
+
     df_ref = df_ref[["code_insee", "nom_commune"]]
+
+    # Suppression des doublons sur le code INSEE
     df_ref = df_ref.drop_duplicates(subset=["code_insee"])
 
 
-    # Jointure avec le référentiel
+    # Étape 9 : Jointure avec le référentiel communal
+
+    # Ajout du nom de commune à partir du code INSEE
     df = pd.merge(df, df_ref, on="code_insee", how="left")
+
+    # Renommage de la colonne nom_commune en localisation
     df = df.rename(columns={"nom_commune": "localisation"})
 
-    
 
+    # Étape 10 : Debug des communes non trouvées
 
-    # --------------------------------
-    # DEBUG COMMUNES NON TROUVÉES
-    # --------------------------------
-
+    # Sélection des communes absentes du référentiel après jointure
     df_non_trouvees = df[df["localisation"].isna()].copy()
 
     print("\n--- COMMUNES NON TROUVÉES APRÈS MERGE ---")
@@ -170,9 +235,8 @@ def clean_demographie(year):
         .sort_index()
     )
 
-    # --------------------------------
 
-
+    # Étape 11 : Construction du dataset final
 
     df_final = df[
         [
@@ -185,21 +249,34 @@ def clean_demographie(year):
     ].copy()
 
 
+    # Suppression des lignes sans localisation
     df_final = df_final[df_final["localisation"].notna()]
+
+    # Suppression des localisations vides
     df_final = df_final[df_final["localisation"].astype(str).str.strip() != ""]
 
-    df_final["annee"] = year #ajout de l'année
+    # Ajout de l'année de référence
+    df_final["annee"] = year
 
-    #arrondir
+
+    # Étape 12 : Arrondi des variables numériques
+
     cols_num = ["pct_jeunes", "pct_seniors", "age_median"]
+
     df_final[cols_num] = df_final[cols_num].round(2)
 
-    #Export
+
+    # Étape 13 : Export du dataset nettoyé
+
     fichier = DIR_OUTPUT / f"05_demographie_{year}_cleaned.csv"
+
     df_final.to_csv(fichier, sep=";", index=False, encoding="utf-8-sig")
 
     print(f" Fichier créé : {fichier}")
     print(f" Lignes sauvegardées : {len(df_final)}")
+
+
+    # Étape 14 : Contrôles qualité finaux
 
     #DEBUG : 
     #df_null = df_final[
@@ -208,8 +285,91 @@ def clean_demographie(year):
     #df_final["age_median"].isna()]
 
     print("Lignes après lecture :", len(df))
+
     print("Communes non trouvées après merge :", df["localisation"].isna().sum())
+
     print(df_final.isna().sum())
 
+
+    # Étape 15 : Debug complémentaire
+
+    # Communes avec population totale nulle ou absente
+    df_sans_population = df[
+        df["population_totale"].isna() |
+        (df["population_totale"] == 0)
+    ].copy()
+
+    # Communes non retrouvées après la jointure
+    # avec le référentiel communal
+    df_non_trouvees = df[
+        df["localisation"].isna()
+    ].copy()
+
+    # Création de l'ensemble des codes INSEE non trouvés
+    codes_non_trouvees = set(
+        df_non_trouvees["code_insee"]
+    )
+
+    # Création de l'ensemble des codes INSEE sans population
+    codes_sans_population = set(
+        df_sans_population["code_insee"]
+    )
+
+    # Communes présentes dans les deux catégories :
+    # - non trouvées dans le référentiel
+    # - sans population exploitable
+    codes_communs = (
+        codes_non_trouvees
+        .intersection(codes_sans_population)
+    )
+
+    print("\n--- COMPARAISON NON TROUVÉES / SANS POPULATION ---")
+
+    # Nombre total de communes absentes du référentiel
+    print(
+        "Communes non trouvées :",
+        len(codes_non_trouvees)
+    )
+
+    # Nombre total de communes sans population exploitable
+    print(
+        "Communes sans population :",
+        len(codes_sans_population)
+    )
+
+    # Nombre de communes cumulant les deux problèmes
+    print(
+        "Communes à la fois non trouvées ET sans population :",
+        len(codes_communs)
+    )
+
+    print(
+        "\n--- COMMUNES SANS POPULATION MAIS TROUVÉES DANS LE RÉFÉRENTIEL ---"
+    )
+
+    # Communes présentes dans le référentiel
+    # mais sans données démographiques exploitables
+    print(
+        len(
+            codes_sans_population
+            - codes_non_trouvees
+        )
+    )
+
+    print(
+        "\n--- COMMUNES NON TROUVÉES MAIS AVEC POPULATION ---"
+    )
+
+    # Communes absentes du référentiel
+    # mais possédant des données de population
+    print(
+        len(
+            codes_non_trouvees
+            - codes_sans_population
+        )
+    )
+
+
+# Point d'entrée du script
 if __name__ == "__main__":
     clean_demographie(2022)

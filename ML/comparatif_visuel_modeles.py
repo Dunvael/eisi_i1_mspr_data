@@ -135,6 +135,7 @@ def build_confusion_matrix(predictions):
         matrix,
         text_auto=True,
         aspect="auto",
+        color_continuous_scale="Turbo",
         title="Matrice de confusion du meilleur modèle"
     )
 

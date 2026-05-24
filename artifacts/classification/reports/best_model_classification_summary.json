@@ -1,9 +1,5 @@
 {
     "modele": "XGBoost",
     "model_file_name": "XGBoost",
-<<<<<<< HEAD
-    "f1_macro": 0.4525
-=======
-    "f1_weighted": 0.7054
->>>>>>> 48e05d5d5a33cc7445b62457c5a6acab97730966
+    "f1_weighted": 0.7067
 }
