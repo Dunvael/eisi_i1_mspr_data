@@ -49,6 +49,7 @@ git clone https://github.com/Dunvael/eisi_i1_mspr_data.git
 
 Le script mspr.sh permet de déployer l'intégralité du pipeline ETL :
 
+* Il gère le téléchargement des datasets *raw* via `gdown`, en récupérant automatiquement les données depuis Google Drive si elles ne sont pas déjà présentes localement.
 * Génération du dataset d'entrainement (2022)
    * Nettoyage des données collectées
    * Transformation des données
