@@ -19,7 +19,7 @@ DB_PATH = Path("data_cleaned/Train_dataframe.db")
 
 elections = pd.read_csv(DIR / "Y_classe_politique_2022_cleaned.csv", sep=";")
 # votes_politique = pd.read_csv(DIR / "X_votes_politiques_2022_cleaned.csv", sep=";") A utiliser
-revenus = pd.read_csv(DIR / "01_revenus_median_2021_cleaned.csv", sep=";")
+revenus = pd.read_csv(DIR / "01_revenus_2021_cleaned.csv", sep=";")
 chomage = pd.read_csv(DIR / "02_taux_chomage_2022_cleaned.csv", sep=";")
 categorie_sociale = pd.read_csv(DIR / "03_categorie_sociale_2022_cleaned.csv", sep=";")
 densite = pd.read_csv(DIR / "04_densite_population_2022_cleaned.csv", sep=";")
