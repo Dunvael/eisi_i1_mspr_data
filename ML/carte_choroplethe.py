@@ -18,7 +18,8 @@ with open(
     geojson = json.load(f)
 
 
-fig = px.choropleth_mapbox(
+fig = px.choropleth_map(
+
     df,
 
     geojson=geojson,
@@ -31,7 +32,33 @@ fig = px.choropleth_mapbox(
 
     hover_name="localisation",
 
-    mapbox_style="carto-positron",
+    hover_data={
+
+        "code_insee": True,
+
+        "classe_politique": True,
+
+        "taux_chomage": True,
+
+        "population": True,
+
+        "revenu_median_final": True,
+
+        "densite": True
+    },
+
+    color_discrete_map={
+
+        "extreme_droite": "#0B1F8C",
+
+        "droite": "#6FA8FF",
+
+        "centre": "#FFD966",
+
+        "gauche": "#6AA84F",
+
+        "extreme_gauche": "#38761D"
+    },
 
     zoom=5,
 
@@ -40,7 +67,7 @@ fig = px.choropleth_mapbox(
         "lon": 2.5
     },
 
-    opacity=0.7
+    opacity=0.75
 )
 
 fig.show()
