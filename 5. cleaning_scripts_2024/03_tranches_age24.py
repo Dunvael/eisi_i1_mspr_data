@@ -138,6 +138,29 @@ def traiter_demographie():
     df_final['age_median'] = df_final.apply(lambda row: calcul_age_median(row, final_tranches_cols, midpoints), axis=1)
 
     # =========================================================
+    # Imputation de sécurité (Médiane Départementale)
+    # =========================================================
+    print("Sécurisation des valeurs manquantes par la médiane départementale...")
+    
+    df_final['code_dept'] = df_final['code_insee_2024'].astype(str).str[:2]
+    
+    colonnes_a_imputer = ['pct_jeunes', 'pct_seniors', 'age_median']
+    
+    for col in colonnes_a_imputer:
+        # Médiane du département
+        df_final['mediane_dept'] = df_final.groupby('code_dept')[col].transform('median')
+        # Médiane nationale (en secours absolu)
+        mediane_nationale = df_final[col].median()
+        
+        # Remplacement en cascade
+        df_final[col] = df_final[col].fillna(df_final['mediane_dept']).fillna(mediane_nationale)
+        
+    df_final = df_final.drop(columns=['code_dept', 'mediane_dept'])
+
+    # =========================================================
+    # 6. NETTOYAGE ET EXPORT
+    # =========================================================
+    # =========================================================
     # 6. NETTOYAGE ET EXPORT
     # =========================================================
     df_final['annee'] = 2024

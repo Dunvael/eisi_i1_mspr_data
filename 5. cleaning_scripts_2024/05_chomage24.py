@@ -96,7 +96,7 @@ def calculer_chomage_par_age():
     ].copy()
 
     df_dares['code_insee_source'] = df_dares['Code commune'].astype(str).str.strip().str.zfill(5)
-    df_dares['nb_chomeurs_2024'] = pd.to_numeric(df_dares['Nombre de demandeurs d\'emploi'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+    df_dares['nb_chomeurs_2024'] = pd.to_numeric(df_dares['Nombre de demandeurs d\'emploi'].astype(str).str.replace(',', '.'), errors='coerce')
 
     df_chom_map = pd.merge(df_ref, df_dares[['code_insee_source', 'nb_chomeurs_2024']], left_on="code_insee_2024", right_on="code_insee_source", how="left")
     
@@ -116,45 +116,74 @@ def calculer_chomage_par_age():
     df_final = pd.merge(df_final, df_agg, on="code_insee_2024", how="left")
     df_final = pd.merge(df_final, df_chom_final, on="code_insee_2024", how="left")
     
-    # Imputation chômeurs (médiane)
-    mediane_chom = df_final['nb_chomeurs_2024'].median()
-    df_final['nb_chomeurs_2024'] = df_final['nb_chomeurs_2024'].fillna(mediane_chom).round(0).astype(int)
+    # ---------------------------------------------------------
+    # 1. Imputation Chômeurs (Médiane Départementale)
+    # ---------------------------------------------------------
+    df_final['code_dept'] = df_final['code_insee_2024'].astype(str).str[:2]
+    
+    df_final['mediane_chom_dept'] = df_final.groupby('code_dept')['nb_chomeurs_2024'].transform('median')
+    mediane_chom_nat = df_final['nb_chomeurs_2024'].median()
+    
+    df_final['nb_chomeurs_2024'] = df_final['nb_chomeurs_2024'].fillna(df_final['mediane_chom_dept']).fillna(mediane_chom_nat).round(0).astype(int)
 
-    # Imputation population 15-64 (si commune non trouvée, on estime à 60% de la pop totale)
+    # ---------------------------------------------------------
+    # 2. Imputation Population 15-64 (Règle des 60%)
+    # ---------------------------------------------------------
     masque_pop_nan = df_final['pop_15_64_2022'].isna() | (df_final['pop_15_64_2022'] == 0)
     df_final.loc[masque_pop_nan, 'pop_15_64_2022'] = df_final.loc[masque_pop_nan, 'population'] * 0.60
     
-    # Sécurisation mathématique
-    df_final['pop_15_64_2022'] = df_final['pop_15_64_2022'].round(0).astype(int)
+    # ---------------------------------------------------------
+    # 3. Calcul Mathématique Sécurisé
+    # ---------------------------------------------------------
+    COEFF_CAT_A = 0.517 
+    
+    # Estimation du vrai nombre de chômeurs stricts
+    df_final['vrai_nb_chomeurs_2024'] = (df_final['nb_chomeurs_2024'] * COEFF_CAT_A).round(0)
 
-    # 🎯 LE CALCUL MAGIQUE
+    # Calcul du taux brut (laisse NaN si erreur de division)
     df_final['taux_chomage_15_64'] = np.where(
         df_final['pop_15_64_2022'] > 0,
-        (df_final['nb_chomeurs_2024'] / df_final['pop_15_64_2022']) * 100,
+        (df_final['vrai_nb_chomeurs_2024'] / df_final['pop_15_64_2022']) * 100,
         np.nan
     )
 
-    # Nettoyage des valeurs aberrantes (petits villages)
+    # Nettoyage des valeurs aberrantes (petits villages où 2 chômeurs font exploser le %). On les remet à NaN pour l'imputation suivante.
     df_final.loc[df_final['taux_chomage_15_64'] > 60, 'taux_chomage_15_64'] = np.nan
-    mediane_taux = df_final['taux_chomage_15_64'].median()
-    df_final['taux_chomage_15_64'] = df_final['taux_chomage_15_64'].fillna(mediane_taux).round(2)
+    
+    # ---------------------------------------------------------
+    # 4. Imputation du Taux de Chômage Final (Médiane Départementale)
+    # ---------------------------------------------------------
+    df_final['mediane_taux_dept'] = df_final.groupby('code_dept')['taux_chomage_15_64'].transform('median')
+    mediane_taux_nat = df_final['taux_chomage_15_64'].median()
+    
+    df_final['taux_chomage_15_64'] = df_final['taux_chomage_15_64'].fillna(df_final['mediane_taux_dept']).fillna(mediane_taux_nat).round(2)
+    
+    # Nettoyage final des colonnes temporaires
+    df_final = df_final.drop(columns=['code_dept', 'mediane_chom_dept', 'mediane_taux_dept'])
 
     # =========================================================
     # 5. EXPORT FINAL
     # =========================================================
     df_final['annee'] = 2024
-    df_export = df_final[['code_insee_2024', 'nom_commune_2024', 'nb_chomeurs_2024', 'taux_chomage_15_64', 'annee']].copy()
+    
+    # On exporte la nouvelle colonne estimée et on la renomme proprement
+    df_export = df_final[['code_insee_2024', 'nom_commune_2024', 'vrai_nb_chomeurs_2024', 'taux_chomage_15_64', 'annee']].copy()
+    df_export = df_export.rename(columns={'vrai_nb_chomeurs_2024': 'nb_chomeurs_2024'})
 
     df_export.to_csv(FILE_OUTPUT, sep=";", index=False, encoding="utf-8-sig")
-
+    
+    # On calcule le taux national avec les chômeurs REDRESSÉS
+    taux_national = (df_final['vrai_nb_chomeurs_2024'].sum() / df_final['pop_15_64_2022'].sum()) * 100
+    
     print("\n" + "="*50)
-    print("🏆 RAPPORT : VRAI TAUX DE CHÔMAGE 2024 (15-64 ANS)")
+    print("🏆 RAPPORT : VRAI TAUX DE CHÔMAGE 2024 (CATÉGORIE A ESTIMÉE)")
     print("="*50)
     print(f"Communes traitées             : {len(df_export):,}")
-    print(f"Total Demandeurs d'Emploi     : {df_final['nb_chomeurs_2024'].sum():,.0f}")
+    print(f"Total Chômeurs (Est.)         : {df_final['vrai_nb_chomeurs_2024'].sum():,.0f}")
     print("-" * 50)
     print(f"💼 POP. ÂGE TRAVAILLER (15-64): {df_final['pop_15_64_2022'].sum():,.0f}")
-    print(f"📉 TAUX DE CHÔMAGE MOYEN      : {df_export['taux_chomage_15_64'].mean():.2f} %")
+    print(f"📉 TAUX MOYEN DES COMMUNES    : {df_export['taux_chomage_15_64'].mean():.2f} %")
+    print(f"🌍 TAUX DE CHÔMAGE NATIONAL   : {taux_national:.2f} %")
     print("="*50 + "\n")
     
     print("🔍 Aperçu :")

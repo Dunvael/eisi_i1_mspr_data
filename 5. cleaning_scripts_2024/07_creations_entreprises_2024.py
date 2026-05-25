@@ -3,7 +3,7 @@ import numpy as np
 from pathlib import Path
 import sys
 
-print("🚀 Pipeline 2024 : Dynamisme Économique (Créations d'Entreprises)")
+print(" Créations d'Entreprises")
 
 # =========================================================
 # 1. CONFIGURATION DES CHEMINS
@@ -36,7 +36,7 @@ def nettoyer_entreprises():
     # =========================================================
     # 2. FILTRAGE STRICT (Logique INSEE)
     # =========================================================
-    print("⚙️ Filtrage des créations totales par commune en 2024...")
+    print(" Filtrage des créations totales par commune en 2024...")
     
     # On isole uniquement les totaux ("_T") par commune ("COM") pour l'année 2024
     df_2024 = df_raw[

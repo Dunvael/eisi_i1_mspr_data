@@ -70,7 +70,7 @@ def modeliser_immigration():
     # Agrégation par commune 2024 (On additionne les volumes AVANT de calculer le ratio)
     df_agg = df_mapped.groupby(["code_insee_2024", "nom_commune_2024"])[["volume_total_2022", "volume_immi_2022"]].sum().reset_index()
 
-    # =========================================================
+   # =========================================================
     # 4. CALCUL DU TAUX PROJETÉ ET APPLICATION 2024
     # =========================================================
     print("Application de la croissance tendancielle et calcul des volumes 2024...")
@@ -88,9 +88,25 @@ def modeliser_immigration():
     # Projection 2024
     df_final['taux_immigration_pct'] = (df_final['ratio_2022'] * COEFF_2024 * 100)
     
-    # Imputation pour les communes inconnues (Médiane nationale)
-    mediane_immi = df_final['taux_immigration_pct'].median()
-    df_final['taux_immigration_pct'] = df_final['taux_immigration_pct'].fillna(mediane_immi).round(2)
+    # =========================================================
+    # Imputation pour les communes inconnues (Médiane Départementale)
+    # =========================================================
+    print("Imputation des valeurs manquantes par la médiane départementale...")
+    
+    # 1. On extrait le département
+    df_final['code_dept'] = df_final['code_insee_2024'].astype(str).str[:2]
+    
+    # 2. Médiane par département
+    df_final['mediane_dept'] = df_final.groupby('code_dept')['taux_immigration_pct'].transform('median')
+    
+    # 3. Médiane nationale (en secours au cas où un département entier est vide)
+    mediane_nationale = df_final['taux_immigration_pct'].median()
+    
+    # 4. Remplacement en cascade : Médiane Dept d'abord, puis Nationale, puis on arrondit
+    df_final['taux_immigration_pct'] = df_final['taux_immigration_pct'].fillna(df_final['mediane_dept']).fillna(mediane_nationale).round(2)
+    
+    # 5. Nettoyage des colonnes temporaires
+    df_final = df_final.drop(columns=['code_dept', 'mediane_dept'])
     
     df_final['taux_immigration_pct'] = df_final['taux_immigration_pct'].clip(upper=100.0)
 
