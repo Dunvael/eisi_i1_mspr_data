@@ -18,7 +18,7 @@
 
 * Python 3.11+
 * Téléchargement des datasets d'entraînement (2022) et de prédiction (2024) dans le dossier xx → *cf. Sources des datasets*
-* Préparation de l'environnement Python 'dépendances) → fichier `requirements.txt` à lancer avec le script py_libraries.sh (placé à la racine du projet)
+* Préparation de l'environnement Python (dépendances) → fichier `requirements.txt` à lancer avec le script py_libraries.sh (placé à la racine du projet)
 * Script de déploiment automatisé des scripts ETL Python
 
 ---
