@@ -5,9 +5,9 @@ import sys
 
 print(" Créations d'Entreprises")
 
-# =========================================================
+
 # 1. CONFIGURATION DES CHEMINS
-# =========================================================
+
 BASE_DIR = Path(".")
 
 
@@ -29,13 +29,15 @@ def nettoyer_entreprises():
     df_ref = pd.read_csv(FILE_REF, sep=";", dtype=str)
     
     df_pop = pd.read_csv(FILE_POP_2024, sep=";", dtype=str)
+
+    # Conversion population en numérique
     df_pop['population'] = pd.to_numeric(df_pop['population'], errors='coerce').fillna(0).astype(int)
 
     df_raw = pd.read_csv(FILE_RAW, sep=";", dtype=str)
 
-    # =========================================================
-    # 2. FILTRAGE STRICT (Logique INSEE)
-    # =========================================================
+    
+    # 2. FILTRAGE
+    
     print(" Filtrage des créations totales par commune en 2024...")
     
     # On isole uniquement les totaux ("_T") par commune ("COM") pour l'année 2024
@@ -46,15 +48,16 @@ def nettoyer_entreprises():
     ].copy()
 
     df_2024["GEO"] = df_2024["GEO"].astype(str).str.strip().str.zfill(5)
+    # Conversion valeur numérique 
     df_2024["OBS_VALUE"] = pd.to_numeric(df_2024["OBS_VALUE"], errors="coerce").fillna(0)
 
     df_entreprises = df_2024.groupby("GEO", as_index=False)["OBS_VALUE"].sum()
 
-    # =========================================================
-    # 3. ALIGNEMENT SUR LE RÉFÉRENTIEL (FUSIONS)
-    # =========================================================
-    print("Alignement géographique et gestion des fusions...")
     
+    # 3. ALIGNEMENT SUR LE RÉFÉRENTIEL
+    
+    print("Alignement géographique et gestion des fusions...")
+    # Jointure sur code INSEE 2024
     df_mapped = pd.merge(df_ref, df_entreprises, left_on="code_insee_2024", right_on="GEO", how="left")
 
     masque_nan = df_mapped["OBS_VALUE"].isna()
@@ -67,22 +70,22 @@ def nettoyer_entreprises():
     
     df_agg["OBS_VALUE"] = df_agg["OBS_VALUE"].fillna(0).astype(int)
 
-    # =========================================================
-    # 4. FEATURE ENGINEERING (DENSITÉ ENTREPRENEURIALE)
-    # =========================================================
+    
+    # 4. FEATURE ENGINEERING
+    
     print("Calcul du dynamisme entrepreneurial (Taux pour 1000 hab)...")
     
     df_final = pd.merge(df_agg, df_pop[['code_insee_2024', 'population']], on='code_insee_2024', how='inner')
-
+    # Taux de création d'entreprises pour 1000 habitants
     df_final["taux_creation_entreprises_1000_hab"] = np.where(
         df_final["population"] > 0,
         (df_final["OBS_VALUE"] / df_final["population"]) * 1000,
         0
     ).round(2)
 
-    # =========================================================
+    
     # 5. RENOMMAGE ET EXPORT
-    # =========================================================
+    
     df_final = df_final.rename(columns={"OBS_VALUE": "nb_creations_entreprises_2024"})
     df_final['annee'] = 2024
     

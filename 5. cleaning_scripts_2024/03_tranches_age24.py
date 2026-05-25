@@ -5,9 +5,9 @@ import sys
 
 print("Démographie 2024 :Tranches d'Âge")
 
-# =========================================================
+
 # 1. CONFIGURATION DES CHEMINS
-# =========================================================
+
 BASE_DIR = Path(".")
 
 FILE_REF = BASE_DIR / "data_cleaned" / "2024" / "00_referentiel_communes_22_24_clean.csv"
@@ -18,13 +18,19 @@ FILE_DATA_2022 = BASE_DIR / "data_raw" / "2022_raw" / "5_demographie_2022" / "DE
 
 FILE_OUTPUT = BASE_DIR / "data_cleaned" / "2024" / "03_Demographie" / "03_tranches_age_2024_clean.csv"
 
-# Coefficients de structure INSEE (2022 -> 2024)
+# Coefficients INSEE pour projeter 2022 → 2024
 COEFFS_INSEE = {
     '00_14': 0.978, '15_29': 0.992, '30_44': 1.004, 
     '45_59': 0.995, '60_74': 1.018, '75_plus': 1.035 
 }
 
+
+# 2. FONCTION UTILITAIRE : CALCUL ÂGE MÉDIAN
+
 def calcul_age_median(row, age_cols, midpoints):
+    """
+    Estime l'âge médian à partir des tranches d'âge cumulées.
+    """
     total = row[age_cols].sum()
     if total == 0 or pd.isna(total):
         return np.nan
@@ -38,32 +44,39 @@ def calcul_age_median(row, age_cols, midpoints):
             return midpoint
     return np.nan
 
+
+# 3. PIPELINE PRINCIPAL
+
 def traiter_demographie():
-    # =========================================================
-    # 2. CHARGEMENT ET PRÉPARATION
-    # =========================================================
+    
+    # Vérification des fichiers nécessaires
     if not FILE_REF.exists() or not FILE_POP_2024.exists() or not FILE_DATA_2022.exists():
         print("Fichiers introuvables.")
         sys.exit(1)
 
     print("Chargement des données...")
+    # Référentiel communes
     df_ref = pd.read_csv(FILE_REF, sep=";", dtype=str)
     
+    # Population 2024 (déjà nettoyée)
     df_pop = pd.read_csv(FILE_POP_2024, sep=";", dtype=str)
     df_pop['population'] = pd.to_numeric(df_pop['population'], errors='coerce').fillna(0).astype(int)
-
+    
+    # Données INSEE 2022 (structure démographique de base)
     df_excel = pd.read_excel(FILE_DATA_2022, sheet_name="COM_2022", skiprows=13, dtype=str)
     df_excel.columns = df_excel.columns.astype(str).str.strip()
     
+    # Construction du code INSEE 2022
     df_excel["DR"] = df_excel["DR"].astype(str).str.zfill(2)
     df_excel["CR"] = df_excel["CR"].astype(str).str.zfill(3)
     df_excel["code_insee_2022_source"] = df_excel["DR"] + df_excel["CR"]
 
-    # =========================================================
-    # 3. PROJECTION DES VOLUMES 2022 AVEC COEFFICIENTS
-    # =========================================================
+    
+    # 4. PROJECTION DES TRANCHES D'ÂGE (2022 → 2024)
+    
     print("Application du vieillissement de population (Coefficients INSEE)...")
-
+    
+    # Mapping des colonnes INSEE vers tranches standardisées
     tranches_mapping = {
         "t_0_4": ("ageq_rec01s1rpop2022", "ageq_rec01s2rpop2022", COEFFS_INSEE['00_14']),
         "t_5_9": ("ageq_rec02s1rpop2022", "ageq_rec02s2rpop2022", COEFFS_INSEE['00_14']),
@@ -86,60 +99,73 @@ def traiter_demographie():
         "t_90_94": ("ageq_rec19s1rpop2022", "ageq_rec19s2rpop2022", COEFFS_INSEE['75_plus']),
         "t_95_plus": ("ageq_rec20s1rpop2022", "ageq_rec20s2rpop2022", COEFFS_INSEE['75_plus']),
     }
-
+    
+    # Colonnes finales d'âge
     age_cols = list(tranches_mapping.keys())
-    midpoints = [2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5, 37.5, 42.5, 47.5, 52.5, 57.5, 62.5, 67.5, 72.5, 77.5, 82.5, 87.5, 92.5, 97.5]
 
+    # Points médians utilisés pour estimer l'âge média
+    midpoints = [2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5, 37.5, 42.5, 47.5, 52.5, 57.5, 62.5, 67.5, 72.5, 77.5, 82.5, 87.5, 92.5, 97.5]
+    
+    # Calcul des tranches projetées 2024
     for tranche, (col_h, col_f, coeff) in tranches_mapping.items():
         h = pd.to_numeric(df_excel[col_h], errors="coerce").fillna(0)
         f = pd.to_numeric(df_excel[col_f], errors="coerce").fillna(0)
         df_excel[tranche] = (h + f) * coeff
 
-    # =========================================================
-    # 4. ALIGNEMENT RÉFÉRENTIEL ET FUSIONS
-    # =========================================================
+    
+    # 5. MAPPING AVEC RÉFÉRENTIEL COMMUNES
+    
     print("Mapping géographique et gestion des fusions...")
     
     # Exclut les arrondissements et fait la correspondance 2022->2024
     df_mapped = pd.merge(df_ref, df_excel, left_on="code_insee_2022", right_on="code_insee_2022_source", how="inner")
     
+    # Agrégation après fusion de communes
     df_agg = df_mapped.groupby(["code_insee_2024", "nom_commune_2024"])[age_cols].sum().reset_index()
 
-    # Calcul des proportions structurelles de la nouvelle commune
+    
+    # 6. CALCUL DES STRUCTURES DÉMOGRAPHIQUES
+    
     df_agg['total_projete'] = df_agg[age_cols].sum(axis=1).replace(0, np.nan)
     for col in age_cols:
         df_agg[f"prop_{col}"] = df_agg[col] / df_agg['total_projete']
 
-    # =========================================================
-    # 5. CROISEMENT AVEC LA VRAIE POPULATION 2024
-    # =========================================================
+    
+    # 7. APPLICATION POPULATION RÉELLE 2024
+    
     print("Calcul des indicateurs finaux sur la population 2024...")
     
     df_final = pd.merge(df_agg, df_pop[['code_insee_2024', 'population']], on='code_insee_2024', how='inner')
 
-    # On applique les proportions aux vrais volumes 2024
+    # Reconstruction des volumes réels par tranche
     final_tranches_cols = []
     for col in age_cols:
         nom_col = f"{col}_2024"
         final_tranches_cols.append(nom_col)
         df_final[nom_col] = (df_final['population'] * df_final[f"prop_{col}"]).fillna(0)
 
-    # Groupements : Jeunes (< 25 ans = les 5 premières tranches) et Seniors (>= 65 ans = les 7 dernières)
-    jeunes_cols = final_tranches_cols[:5]
-    seniors_cols = final_tranches_cols[13:]
+    
+    # 8. INDICATEURS SOCIAUX
+    
 
+    # Jeunes (<25 ans)
+    jeunes_cols = final_tranches_cols[:5]
+    # Seniors (65+)
+    seniors_cols = final_tranches_cols[13:]
+    
+    # Pourcentages
     df_final['jeunes'] = df_final[jeunes_cols].sum(axis=1)
     df_final['seniors'] = df_final[seniors_cols].sum(axis=1)
 
     df_final['pct_jeunes'] = np.where(df_final['population'] > 0, (df_final['jeunes'] / df_final['population']) * 100, np.nan)
     df_final['pct_seniors'] = np.where(df_final['population'] > 0, (df_final['seniors'] / df_final['population']) * 100, np.nan)
 
-    # Âge médian
+    # Âge médian estimé
     df_final['age_median'] = df_final.apply(lambda row: calcul_age_median(row, final_tranches_cols, midpoints), axis=1)
 
-    # =========================================================
-    # Imputation de sécurité (Médiane Départementale)
-    # =========================================================
+    
+    # 9. Imputation de sécurité (Médiane Départementale)
+    
     print("Sécurisation des valeurs manquantes par la médiane départementale...")
     
     df_final['code_dept'] = df_final['code_insee_2024'].astype(str).str[:2]
@@ -157,12 +183,10 @@ def traiter_demographie():
         
     df_final = df_final.drop(columns=['code_dept', 'mediane_dept'])
 
-    # =========================================================
-    # 6. NETTOYAGE ET EXPORT
-    # =========================================================
-    # =========================================================
-    # 6. NETTOYAGE ET EXPORT
-    # =========================================================
+   
+    
+    # 10. EXPORT
+    
     df_final['annee'] = 2024
     df_final['pct_jeunes'] = df_final['pct_jeunes'].round(2)
     df_final['pct_seniors'] = df_final['pct_seniors'].round(2)

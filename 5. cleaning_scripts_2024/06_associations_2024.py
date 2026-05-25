@@ -5,15 +5,15 @@ import sys
 
 print("ASSOCIATIONS 2024(Densité & Créations)")
 
-# =========================================================
+
 # 1. CONFIGURATION DES CHEMINS
-# =========================================================
+
 BASE_DIR = Path(".")
 
 
 FILE_REF = BASE_DIR / "data_cleaned" / "2024" / "00_referentiel_communes_22_24_clean.csv"
 FILE_POP_2024 = BASE_DIR / "data_cleaned" / "2024" / "01_Densite_population" / "01.3_population_densite_2024_clean.csv"
-
+# Données brutes associations INSEE
 FILE_RAW = BASE_DIR / "data_raw" / "2024_raw" / "6. Associations" / "associations_2024.xlsx"
 
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2024" / "06_Associations"
@@ -21,6 +21,7 @@ DIR_OUTPUT.mkdir(parents=True, exist_ok=True)
 FILE_OUTPUT = DIR_OUTPUT / "06_associations_2024_clean.csv"
 
 def nettoyer_associations():
+    # Vérification de l'existence des fichiers nécessaires
     if not all(p.exists() for p in [FILE_REF, FILE_POP_2024, FILE_RAW]):
         print("Fichiers introuvables.")
         sys.exit(1)
@@ -43,9 +44,9 @@ def nettoyer_associations():
             print(f"ERREUR: La colonne '{col}' est absente du fichier Excel.")
             sys.exit(1)
 
-    # =========================================================
+    
     # 2. NETTOYAGE PRÉALABLE DU BRUT
-    # =========================================================
+    
     print("Nettoyage des formats et conversion numérique...")
     
     # Code INSEE sur 5 caractères
@@ -54,11 +55,11 @@ def nettoyer_associations():
     for col in ["TOTASSO2024", "ASSO2024"]:
         df_raw[col] = pd.to_numeric(df_raw[col].astype(str).str.replace(",", "."), errors="coerce").fillna(0)
 
-    # =========================================================
-    # 3. ALIGNEMENT SUR LE RÉFÉRENTIEL (FUSIONS)
-    # =========================================================
-    print("Alignement géographique et gestion des fusions...")
     
+    # 3. ALIGNEMENT SUR LE RÉFÉRENTIEL (FUSIONS)
+    
+    print("Alignement géographique et gestion des fusions...")
+    # Jointure principale avec codes INSEE 2024
     df_mapped = pd.merge(df_ref, df_raw[["INSEE", "TOTASSO2024", "ASSO2024"]], left_on="code_insee_2024", right_on="INSEE", how="left")
     
     masque_nan = df_mapped["TOTASSO2024"].isna()
@@ -66,17 +67,18 @@ def nettoyer_associations():
         df_fallback = pd.merge(df_ref, df_raw[["INSEE", "TOTASSO2024", "ASSO2024"]], left_on="code_insee_2022", right_on="INSEE", how="inner")
         df_mapped.update(df_fallback[["code_insee_2024", "TOTASSO2024", "ASSO2024"]])
 
+    # Agrégation pour gérer les communes fusionnées
     df_agg = df_mapped.groupby(["code_insee_2024", "nom_commune_2024"])[["TOTASSO2024", "ASSO2024"]].sum().reset_index()
 
     df_agg["TOTASSO2024"] = df_agg["TOTASSO2024"].fillna(0).astype(int)
     df_agg["ASSO2024"] = df_agg["ASSO2024"].fillna(0).astype(int)
 
-    # =========================================================
-    # 4. FEATURE ENGINEERING (ML READY)
-    # =========================================================
+    
+    # 4. FEATURE ENGINEERING 
+    
     print("Calcul des indicateurs de dynamisme (Taux & Densité)...")
     
-    # Croisement avec la population
+    # Ajout population pour calculs de ratios
     df_final = pd.merge(df_agg, df_pop[['code_insee_2024', 'population']], on='code_insee_2024', how='inner')
 
     # 1. Le Taux de création  %
@@ -86,23 +88,23 @@ def nettoyer_associations():
         0
     ).round(2)
 
-    # 2. La Densité associative (Associations pour 1000 habitants)
+    # 2. Densité associative (pour 1000 habitants)
     df_final["densite_asso_1000_hab"] = np.where(
         df_final["population"] > 0,
         (df_final["TOTASSO2024"] / df_final["population"]) * 1000,
         0
     ).round(1)
 
-    # =========================================================
+    
     # 5. RENOMMAGE ET EXPORT
-    # =========================================================
+    
     df_final = df_final.rename(columns={
         "TOTASSO2024": "nb_associations_total",
         "ASSO2024": "nb_creations_2024"
     })
 
     df_final['annee'] = 2024
-    
+    # Colonnes finales exportées
     cols_export = [
         "code_insee_2024", "nom_commune_2024", 
         "nb_associations_total", "nb_creations_2024", 

@@ -3,12 +3,12 @@ import numpy as np
 from pathlib import Path
 import sys
 
-print("🚀 Pipeline 2024 : Démographie (Modélisation Immigration 2024)")
+print(" Immigration 2024)")
 
-# =========================================================
+
 # 1. PARAMÈTRES ET CHEMINS
-# =========================================================
-# Coefficient de croissance estimé de la part immigrée (Insee 2022 -> 2024)
+
+# Coefficient de croissance estimé de la part immigrée (projection 2022 -> 2024)
 COEFF_2024 = 1.10 
 
 BASE_DIR = Path(".")
@@ -16,7 +16,7 @@ BASE_DIR = Path(".")
 FILE_REF = BASE_DIR / "data_cleaned" / "2024" / "00_referentiel_communes_22_24_clean.csv"
 FILE_POP_2024 = BASE_DIR / "data_cleaned" / "2024" / "01_Densite_population" / "01.3_population_densite_2024_clean.csv"
 
-# Fichier source INSEE 2022
+# Source INSEE 2022 (structure immigration)
 FILE_INSEE_EXCEL = BASE_DIR / "data_raw" / "2022_raw" / "6_taux_immigration_2022" / "ACTIVITE_IMMIGRATION_PAR_COM_2022.xlsx"
 
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2024" / "08_Immigration"
@@ -34,11 +34,12 @@ def modeliser_immigration():
     df_pop = pd.read_csv(FILE_POP_2024, sep=";", dtype=str)
     df_pop['population'] = pd.to_numeric(df_pop['population'], errors='coerce').fillna(0).astype(int)
 
-    # =========================================================
+    
     # 2. EXTRACTION DES DONNÉES INSEE (2022)
-    # =========================================================
+    
     print("Extraction des volumes historiques depuis l'Excel INSEE...")
     try:
+        # Détection dynamique de l'en-tête dans le fichier Excel
         df_preview = pd.read_excel(FILE_INSEE_EXCEL, nrows=25, header=None)
         header_idx = next(i for i, row in df_preview.iterrows() if "CODGEO" in row.astype(str).values)
         df_struct = pd.read_excel(FILE_INSEE_EXCEL, skiprows=header_idx, dtype={'CODGEO': str})
@@ -46,39 +47,41 @@ def modeliser_immigration():
         print(f"Erreur lors de la lecture Excel : {e}")
         sys.exit(1)
 
+    # Nettoyage des colonnes
     df_struct.columns = df_struct.columns.astype(str).str.strip()
     df_struct['code_insee_source'] = df_struct['CODGEO'].astype(str).str.strip().str.zfill(5)
 
-    # Identification des colonnes Français (INATC1) et Étrangers/Immigrés (INATC2)
+    # Colonnes INSEE (français vs immigrés)
     cols_fr = [c for c in df_struct.columns if 'INATC1' in c]
     cols_et = [c for c in df_struct.columns if 'INATC2' in c]
 
     for col in cols_fr + cols_et:
         df_struct[col] = pd.to_numeric(df_struct[col], errors='coerce').fillna(0)
 
-    # Calcul des volumes bruts 2022
+    # Population totale
     df_struct['volume_total_2022'] = df_struct[cols_fr + cols_et].sum(axis=1)
+    # Population immigrée
     df_struct['volume_immi_2022'] = df_struct[cols_et].sum(axis=1)
 
-    # =========================================================
+    
     # 3. ALIGNEMENT RÉFÉRENTIEL ET AGRÉGATION
-    # =========================================================
+    
     print("Alignement géographique et consolidation des fusions...")
     
     df_mapped = pd.merge(df_ref, df_struct[['code_insee_source', 'volume_total_2022', 'volume_immi_2022']], left_on="code_insee_2022", right_on="code_insee_source", how="inner")
     
-    # Agrégation par commune 2024 (On additionne les volumes AVANT de calculer le ratio)
+    # Agrégation vers communes 2024
     df_agg = df_mapped.groupby(["code_insee_2024", "nom_commune_2024"])[["volume_total_2022", "volume_immi_2022"]].sum().reset_index()
 
-   # =========================================================
+   
     # 4. CALCUL DU TAUX PROJETÉ ET APPLICATION 2024
-    # =========================================================
+    
     print("Application de la croissance tendancielle et calcul des volumes 2024...")
     
     df_final = pd.merge(df_ref[["code_insee_2024", "nom_commune_2024"]].drop_duplicates(), df_pop[['code_insee_2024', 'population']], on="code_insee_2024", how="inner")
     df_final = pd.merge(df_final, df_agg[['code_insee_2024', 'volume_total_2022', 'volume_immi_2022']], on="code_insee_2024", how="left")
 
-    # Calcul du ratio de base 2022 pour la commune 
+    # Ratio immigré 2022 
     df_final['ratio_2022'] = np.where(
         df_final['volume_total_2022'] > 0,
         df_final['volume_immi_2022'] / df_final['volume_total_2022'],
@@ -88,9 +91,9 @@ def modeliser_immigration():
     # Projection 2024
     df_final['taux_immigration_pct'] = (df_final['ratio_2022'] * COEFF_2024 * 100)
     
-    # =========================================================
+    
     # Imputation pour les communes inconnues (Médiane Départementale)
-    # =========================================================
+    
     print("Imputation des valeurs manquantes par la médiane départementale...")
     
     # 1. On extrait le département
@@ -99,7 +102,7 @@ def modeliser_immigration():
     # 2. Médiane par département
     df_final['mediane_dept'] = df_final.groupby('code_dept')['taux_immigration_pct'].transform('median')
     
-    # 3. Médiane nationale (en secours au cas où un département entier est vide)
+    # 3. Médiane nationale ( au cas où un département entier est vide)
     mediane_nationale = df_final['taux_immigration_pct'].median()
     
     # 4. Remplacement en cascade : Médiane Dept d'abord, puis Nationale, puis on arrondit
@@ -113,9 +116,9 @@ def modeliser_immigration():
     # Calcul du nombre d'individus 2024
     df_final['nb_immigres_2024'] = (df_final['population'] * (df_final['taux_immigration_pct'] / 100)).round(0).astype(int)
 
-    # =========================================================
+    
     # 5. EXPORT FINAL
-    # =========================================================
+    
     df_final['annee'] = 2024
     
     cols_export = [

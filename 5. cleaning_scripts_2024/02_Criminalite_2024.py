@@ -4,9 +4,9 @@ import sys
 
 print("Nettoyage criminalité 2024")
 
-# =========================================================
+
 # 1. CONFIGURATION DES CHEMINS
-# =========================================================
+
 BASE_DIR = Path(".")
 
 FILE_REF = BASE_DIR / "data_cleaned" / "2024" / "00_referentiel_communes_22_24_clean.csv"
@@ -14,7 +14,12 @@ FILE_DATA = BASE_DIR / "data_raw" / "2024_raw" / "2. Criminalite" / "criminalite
 DIR_OUTPUT = BASE_DIR / "data_cleaned" / "2024" / "02_Criminalite"
 DIR_OUTPUT.mkdir(parents=True, exist_ok=True)
 
+
+# 2. NETTOYAGE
+
 def clean_criminalite_all(year=2024):
+
+    # Vérification existence fichiers
     if not FILE_REF.exists():
         print(f"Référentiel introuvable : {FILE_REF}")
         sys.exit(1)
@@ -22,31 +27,39 @@ def clean_criminalite_all(year=2024):
         print(f"Données introuvables : {FILE_DATA}")
         sys.exit(1)
 
-    # =========================================================
-    # 2. LECTURE DES DONNÉES
-    # =========================================================
+    # Chargement du référentiel (mapping communes 2022 → 2024)
     ref = pd.read_csv(FILE_REF, sep=";", dtype=str)
 
     print(f" Lecture des données de criminalité {year}...")
+
+    # Lecture flexible (csv ou parquet)
     if FILE_DATA.suffix == '.parquet':
         df = pd.read_parquet(FILE_DATA)
     else:
         df = pd.read_csv(FILE_DATA, sep=";", dtype=str)
 
+    
+    # 3. NORMALISATION DES CODES GÉOGRAPHIQUES
+    
+
+    # On détecte la bonne colonne GEO selon les données
     col_geo_source = "CODGEO_2025" if "CODGEO_2025" in df.columns else "CODGEO"
+    # Uniformisation des codes INSEE (5 chiffres)
     df[col_geo_source] = df[col_geo_source].astype(str).str.strip().str.zfill(5)
 
-    # =========================================================
-    # 3. MAPPING GÉOGRAPHIQUE  RÉFÉRENTIEL
-    # =========================================================
+    
+    # 4. JOINTURE AVEC LE RÉFÉRENTIEL
+    
+
+    # On relie les données de criminalité aux communes 2024
     print("Application du mapping géographique...")
     df = df.merge(ref, left_on=col_geo_source, right_on="code_insee_2024", how="inner")
 
     df["code_insee_final"] = df["code_insee_2024"].fillna(df[col_geo_source])
 
-    # =========================================================
-    # 4. FILTRAGE 
-    # =========================================================
+    
+    # 5. FILTRAGE DES INDICATEURS UTILES
+    
     indicateurs_gardes = [
         "Violences physiques intrafamiliales",
         "Violences sexuelles",
@@ -58,25 +71,28 @@ def clean_criminalite_all(year=2024):
         "Usage de stupéfiants",
         "Trafic de stupéfiants"
     ]
-
+    
+    # Filtre année + indicateurs pertinents
     df["annee"] = df["annee"].astype(str)
     df = df[
         (df["annee"] == str(year)) &
         (df["indicateur"].isin(indicateurs_gardes))
     ].copy()
 
-    # =========================================================
-    # 5. GESTION DU TAUX FINAL 
-    # =========================================================
+    
+    # 6. NETTOYAGE DU TAUX
+    
+
     # Récupération des données masquées (ndiff)
     df["taux_final"] = df["taux_pour_mille"].fillna(df["complement_info_taux"])
-
+    
+    # Conversion propre en float (gestion virgule française)
     df["taux_final"] = df["taux_final"].astype(str).str.replace(',', '.')
     df["taux_final"] = pd.to_numeric(df["taux_final"], errors="coerce")
 
-    # =========================================================
-    # 6. PIVOT DES DONNÉES
-    # =========================================================
+    
+    # 7. TRANSFORMATION EN TABLE CROISÉE (PIVOT)
+    
     print("Pivot de la table...")
     df_pivot = df.pivot_table(
         index=["code_insee_final", "annee"],
@@ -85,9 +101,9 @@ def clean_criminalite_all(year=2024):
         aggfunc="mean" # Moyenne du taux si des communes ont fusionné
     ).reset_index()
 
-    # =========================================================
-    # 7. RENOMMAGE 
-    # =========================================================
+    
+    # 8. RENOMMAGE DES VARIABLES
+    
     df_pivot = df_pivot.rename(columns={
         "code_insee_final": "code_insee_2024",
         "Violences physiques intrafamiliales": "taux_violences_intrafamiliales",
@@ -100,20 +116,24 @@ def clean_criminalite_all(year=2024):
         "Usage de stupéfiants": "taux_usage_stupefiants",
         "Trafic de stupéfiants": "taux_trafic_stupefiants"
     })
-
+    
+    # Ajout du nom de commune depuis le référentiel
     df_pivot = df_pivot.merge(ref[["code_insee_2024", "nom_commune_2024"]].drop_duplicates(), on="code_insee_2024", how="left")
     
+    # Réorganisation des colonnes (nom après code)
     cols = df_pivot.columns.tolist()
     cols.insert(1, cols.pop(cols.index("nom_commune_2024")))
     df_pivot = df_pivot[cols]
-    # =========================================================
-    # 7.5 IMPUTATION DES VALEURS MANQUANTES (MÉDIANE DÉPARTEMENTALE)
-    # =========================================================
+
+    
+    # 9. IMPUTATION DES VALEURS MANQUANTES
+    
     print("Imputation des valeurs manquantes par la médiane départementale...")
     
+    # Création du code département
     df_pivot['code_dept'] = df_pivot['code_insee_2024'].astype(str).str[:2]
     
-    # On identifie les colonnes de taux (tout sauf code, nom, et annee)
+    # Toutes les colonnes de taux
     cols_taux = [col for col in df_pivot.columns if col.startswith('taux_')]
     
     for col in cols_taux:
@@ -127,9 +147,9 @@ def clean_criminalite_all(year=2024):
         
     df_pivot = df_pivot.drop(columns=['code_dept', 'mediane_dept'])
 
-    # =========================================================
+    
     # 8. EXPORT ET DASHBOARD
-    # =========================================================
+    
     fichier_sortie = DIR_OUTPUT / f"02_criminalite_diff_ndiff_{year}_cleaned.csv"
     df_pivot.to_csv(fichier_sortie, sep=";", index=False, encoding="utf-8-sig")
 
